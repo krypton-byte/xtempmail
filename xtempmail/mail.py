@@ -33,8 +33,8 @@ class event:
     Event Generator
     """
     def __init__(self) -> None:
-        self.messages = []
-    def message(self, filter:Callable[[EmailMessage], Any]=None):
+        self.messages: list[tuple[Callable[[EmailMessage], None],Callable[[EmailMessage], Any]]] = []
+    def message(self, filter: Callable[[EmailMessage], Any]=None):
         """
         :param filter: Optional
         """
@@ -100,14 +100,14 @@ class Attachment:
         self.content_id = content_id
         self.name = name
         self.size = size
-    def download(self, filename=False)->Union[BytesIO, None]:
+    def download(self, filename=False)->Union[BytesIO, int]:
         """
         :param filename: str->save as file, bool -> BytesIO
         """
         log.info(f'Download File, Attachment ID: {self.id} FROM: {self.mail.__repr__()} NAME: {self.name.__repr__()}')
         bins=requests.get(f'https://tempmail.plus/api/mails/{self.mail_id}/attachments/{self.id}',params={'email':self.mail, 'epin':''})
         if isinstance(filename, str):
-            open(filename,'wb').write(bins.content)
+            return open(filename,'wb').write(bins.content)
         else:
             return BytesIO(bins.content)
     def __repr__(self):
@@ -147,7 +147,7 @@ class Email(requests.Session):
         super().__init__()
         self.email = name+ext.__str__()
         self.first_id = randint(10000000, 99999999)
-        self.email_id = []
+        self.email_id:list[int] = []
         self.on = event()
         log.info(f'Email: {self.email}')
     def get_all_message(self)->list:
@@ -185,7 +185,8 @@ class Email(requests.Session):
         """
         :param id: mail_id
         """
-        id in self.email_id and self.email_id.remove(id)
+        if id in self.email_id:
+            self.email_id.remove(id)
         status = self.delete(f'https://tempmail.plus/api/mails/{id}', data={'email':self.email, 'epin':''}).json()['result']
         if status:
             log.info('Email Message Successfully deleted')
@@ -212,7 +213,7 @@ class Email(requests.Session):
         """
         warn_mail(to)
         log.info(f'Send Message From: {self.email.__repr__()} To: {to.__repr__()} Subject: {subject.__repr__()} Attachment: {bool(file or multiply_file)}')
-        files = []
+        files:list[tuple[str, Union[tuple[str, bytes], Any]]] = []
         to = to.email if isinstance(to, StrangerMail) else to
         if file:
             if isinstance(file, str):
