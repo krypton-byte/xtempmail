@@ -1,3 +1,4 @@
 types-setuptools
 mypy
 requests
+types-requests
