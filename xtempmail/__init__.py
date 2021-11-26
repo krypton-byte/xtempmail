@@ -3,7 +3,8 @@ from .mail import (
     extension, 
     EmailMessage, 
     Attachment, 
-    StrangerMail
+    StrangerMail,
+    event
     )
 
 __all__ = [
@@ -11,5 +12,6 @@ __all__ = [
     'extension', 
     'EmailMessage', 
     'Attachment', 
-    'StrangerMail'
+    'StrangerMail',
+    'event'
     ]
