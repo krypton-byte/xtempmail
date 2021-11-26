@@ -1,8 +1,9 @@
 from xtempmail import Email, extension
+import logging
 from xtempmail.mail import EmailMessage
-app = Email(name='krypton', ext=extension[6], interval=2)
-print(f'\n\tMy Email: {app.email}')
-
+app = Email(name='krn887', ext=extension[6], interval=2)
+log = logging.getLogger('xtempmail')
+log.setLevel(logging.INFO)
 @app.on.message()
 def baca(data: EmailMessage):
     print(f"\tfrom: {data.from_mail}\n\tsubject: {data.subject}\n\tpesan: {data.text}\n\tReply -> Hapus")

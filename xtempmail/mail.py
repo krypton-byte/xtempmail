@@ -1,13 +1,23 @@
-import __future__
+from __future__ import annotations
+from inspect import signature
+import logging
 from io import BytesIO
 from random import randint
-import sys
 import time
-from typing import Generator, Union
+from typing import Any, Callable, Generator, Union
 import requests
 
 author = "krypton-byte"
+logging.basicConfig(format='%(asctime)s  %(message)s', level=logging.INFO)
+log = logging.getLogger('xtempmail')
+log.setLevel(logging.WARNING)
+# log=logging.getLogger('xtempmail')
+# log.setLevel(logging.INFO)
+class Mail_ID_NOTFOUND(Exception):
+    pass
 
+class Parameters(Exception):
+    pass
 class Extension:
     def __init__(self, ex):
         self.ex = '@'+ex
@@ -21,8 +31,19 @@ extension = [ Extension(i) for i in ['mailto.plus','fexpost.com','fexbox.org','f
 class event:
     def __init__(self) -> None:
         self.messages = []
-    def message(self, filter=None):
-        def messag(f):
+    def message(self, filter:Callable[[EmailMessage], Any]=None):
+        def messag(f: Union[Callable[[EmailMessage], None], None]):
+            if callable(filter):
+                sig = signature(filter)
+                if sig.parameters.keys().__len__() > 1 or sig.parameters.keys().__len__() < 1:
+                    raise Parameters('1 Parameters Required For filter Parameter')
+                log.info(f'Filter Parameter: {list(sig.parameters.keys())[0]}')
+            if not callable(f):
+                raise TypeError('Is not function')
+            sig = signature(f)
+            if sig.parameters.keys().__len__() > 1 or sig.parameters.keys().__len__() < 1:
+                raise Parameters('1 Parameters Required For Callback function')
+            log.info(f'Callback Parameter: {list(sig.parameters.keys())[0]}')
             self.messages.append((f,filter if callable(filter) else (lambda x:x)))
         return messag
     def on_message(self, data):
@@ -32,8 +53,7 @@ class event:
 
 def warn_mail(e):
     if '@'+e.split('@')[-1] not in list(map(lambda x:x.__str__(), extension)):
-        sys.stderr.write(f'[!] @{e.split("@")[-1]} unsupported\n')
-        sys.stderr.flush()
+        log.warning(f'[!] @{e.split("@")[-1]} unsupported\n')
 
 class StrangerMail:
     def __init__(self, account, stranger: str) -> None:
@@ -56,6 +76,7 @@ class Attachment:
         """
         :param filename: str->save as file, bool -> BytesIO
         """
+        log.info(f'Download File, Attachment ID: {self.id} FROM: {self.mail.__repr__()} NAME: {self.name.__repr__()}')
         bins=requests.get(f'https://tempmail.plus/api/mails/{self.mail_id}/attachments/{self.id}',params={'email':self.mail, 'epin':''})
         if isinstance(filename, str):
             open(filename,'wb').write(bins.content)
@@ -66,13 +87,22 @@ class Attachment:
 
 class EmailMessage:
     def __init__(self, **kwargs) -> None:
-        self.attachments=[]
-        kwargs['from_mail'] = StrangerMail(kwargs['to'], kwargs['from_mail'])
+        self.attachments: list[Attachment]=[]
+        self.from_mail = StrangerMail(kwargs['to'], kwargs['from_mail'])
         for i in kwargs.pop('attachments',{}):
             attach = Attachment(**i, mail_id=kwargs['to'].email, mail=kwargs['from_mail'])
             self.attachments.append(attach)
-        for key, val in kwargs.items():
-            setattr(self, key, val)
+        self.date: str = kwargs["date"]
+        self.from_is_local:bool = kwargs["from_is_local"]
+        self.from_name: str = kwargs["from_name"]
+        self.html: str = kwargs["html"]
+        self.is_tls: bool = kwargs["is_tls"]
+        self.mail_id: int = kwargs["mail_id"]
+        self.message_id: str = kwargs["message_id"]
+        self.result: bool = kwargs["result"]
+        self.subject: str = kwargs["subject"]
+        self.text: str = kwargs["text"]
+        self.to: Email = kwargs["to"]
     def delete(self)->bool:
         return self.to.delete_message(self.mail_id)
     def __repr__(self) -> str:
@@ -86,9 +116,10 @@ class Email(requests.Session):
         self.first_id = randint(10000000, 99999999)
         self.email_id = []
         self.on = event()
-
+        log.info(f'Email: {self.email} Interval: {self.interval}')
     def get_all_message(self)->list:
         data = []
+        log.info('Get All Message')
         for mail in self.get(f'https://tempmail.plus/api/mails',params={'email':self.email, 'first_id':self.first_id, 'epin':''}).json()['mail_list']:
             data.append(self.get_mail(mail['mail_id']))
         return data
@@ -99,6 +130,7 @@ class Email(requests.Session):
                 for mail in self.get(f'https://tempmail.plus/api/mails',params={'email':self.email, 'first_id':self.first_id, 'epin':''}).json()['mail_list']:
                     if mail['mail_id'] not in self.email_id:
                         recv=self.get_mail(mail['mail_id'])
+                        log.info(f'New message from {mail["from_mail"]} subject: {mail["subject"].__repr__()} ID: {mail["mail_id"]}')
                         self.email_id.append(mail['mail_id'])
                         yield recv
             except requests.exceptions.SSLError:
@@ -112,6 +144,7 @@ class Email(requests.Session):
         """
         to=self.get(f'https://tempmail.plus/api/mails/{id}', params={'email':self.email, 'first_id':self.first_id, 'epin':''}).json()
         to['to'] = self
+        log.info(f'Get Message From ID: {id.__repr__()}')
         return EmailMessage(**to)
 
     def delete_message(self, id: int)->bool:
@@ -119,14 +152,21 @@ class Email(requests.Session):
         :param id: mail_id
         """
         id in self.email_id and self.email_id.remove(id)
-        return self.delete(f'https://tempmail.plus/api/mails/{id}', data={'email':self.email, 'epin':''}).json()['result']
+        status = self.delete(f'https://tempmail.plus/api/mails/{id}', data={'email':self.email, 'epin':''}).json()['result']
+        if status:
+            log.info('Email Message Successfully deleted')
+        else:
+            log.warn('Email Message not found')
+            raise Mail_ID_NOTFOUND()
+        return status
 
     def destroy(self)->bool:
         """
         Destroy Inbox
         """
-        return self.delete('https://tempmail.plus/api/mails/', data={'email':self.email, 'first_id':self.first_id, 'epin':''}).json().get('result')
-
+        stat=self.delete('https://tempmail.plus/api/mails/', data={'email':self.email, 'first_id':self.first_id, 'epin':''}).json().get('result')
+        log.info('Inbox Destroyed')
+        return stat
     def send_mail(self, to: str, subject: str, text: str, file = None, filename = 'file',multiply_file = [])->bool:
         """
         :param to: Email [str | StrangerMail] -> Not Support external email (gmail, yahoo, etc)
@@ -137,6 +177,7 @@ class Email(requests.Session):
         :param multiply_file: tuple (BytesIO|path, str)
         """
         warn_mail(to)
+        log.info(f'Send Message From: {self.email.__repr__()} To: {to.__repr__()} Subject: {subject.__repr__()} Attachment: {bool(file or multiply_file)}')
         files = []
         to = to.email if isinstance(to, StrangerMail) else to
         if file:
@@ -156,6 +197,7 @@ class Email(requests.Session):
         return self.post('https://tempmail.plus/api/mails/', data={'email': self.email,'to': to,'subject': subject,'content_type': 'text/html','text': text},files=tuple(files)).json()['result']
 
     def listen_new_message(self):
+        log.info('Listen Message')
         for i in self.get_new_message():
             self.on.on_message(i)
 
