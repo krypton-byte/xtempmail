@@ -1,9 +1,9 @@
 from xtempmail import Email, extension
 import logging
 from xtempmail.mail import EmailMessage
-app = Email(name='krn887', ext=extension[6], interval=2)
 log = logging.getLogger('xtempmail')
 log.setLevel(logging.INFO)
+app = Email(name='krypton', ext=extension[1])
 @app.on.message()
 def baca(data: EmailMessage):
     print(f"\tfrom: {data.from_mail}\n\tsubject: {data.subject}\n\tpesan: {data.text}\n\tReply -> Hapus")
@@ -26,7 +26,7 @@ def getGmailMessage(data: EmailMessage):
 
 if __name__ == '__main__':
     try:
-        app.listen_new_message() 
+        app.listen_new_message(interval=2) 
     except KeyboardInterrupt:
         app.destroy() #destroy inbox
         print('destroyed')

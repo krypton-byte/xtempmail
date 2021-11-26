@@ -1,0 +1,23 @@
+﻿example
+=======
+
+.. automodule:: example
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
