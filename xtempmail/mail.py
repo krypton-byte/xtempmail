@@ -93,19 +93,20 @@ class Attachment:
     :param name: filename
     :param size: Filesize
     """
-    def __init__(self, mail, mail_id: int, attachment_id:int, content_id: str, name: str, size:int ) -> None:
+    def __init__(self, mail, mail_id: int, attachment_id:int, content_id: str, name: str, size:int, myemail: str) -> None:
         self.mail = mail
         self.mail_id = mail_id
         self.id = attachment_id
         self.content_id = content_id
         self.name = name
         self.size = size
+        self.myemail = myemail
     def download(self, filename=False)->Union[BytesIO, int]:
         """
         :param filename: str->save as file, bool -> BytesIO
         """
         log.info(f'Download File, Attachment ID: {self.id} FROM: {self.mail.__repr__()} NAME: {self.name.__repr__()}')
-        bins=requests.get(f'https://tempmail.plus/api/mails/{self.mail_id}/attachments/{self.id}',params={'email':self.mail, 'epin':''})
+        bins=requests.get(f'https://tempmail.plus/api/mails/{self.mail_id}/attachments/{self.id}',params={'email':self.myemail, 'epin':''})
         if isinstance(filename, str):
             return open(filename,'wb').write(bins.content)
         else:
@@ -121,7 +122,7 @@ class EmailMessage:
         self.attachments: list[Attachment]=[]
         self.from_mail = StrangerMail(kwargs['to'], kwargs['from_mail'])
         for i in kwargs.pop('attachments',{}):
-            attach = Attachment(**i, mail_id=kwargs['to'].email, mail=kwargs['from_mail'])
+            attach = Attachment(**i, mail_id=kwargs['mail_id'], mail=kwargs['from_mail'], myemail=kwargs['to'])
             self.attachments.append(attach)
         self.date: str = kwargs["date"]
         self.from_is_local:bool = kwargs["from_is_local"]
@@ -227,7 +228,7 @@ class Email(requests.Session):
             if i.__len__() == 1:
                 files.append(('file',open(i[0],'rb')))
             elif i.__len__() > 1:
-                x=('file', (i[0],i[1].getvalue()))
+                x=('file', (i[0], i[1].getvalue()))
                 files.append(x)
         return self.post('https://tempmail.plus/api/mails/', data={'email': self.email,'to': to,'subject': subject,'content_type': 'text/html','text': text},files=tuple(files)).json()['result']
 
