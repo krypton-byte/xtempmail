@@ -1,17 +1,17 @@
 from .mail import (
-    Email, 
-    extension, 
-    EmailMessage, 
-    Attachment, 
+    Email,
+    extension,
+    EmailMessage,
+    Attachment,
     StrangerMail,
     event
-    )
+)
 
 __all__ = [
     'Email',
-    'extension', 
-    'EmailMessage', 
-    'Attachment', 
+    'extension',
+    'EmailMessage',
+    'Attachment',
     'StrangerMail',
     'event'
-    ]
+]

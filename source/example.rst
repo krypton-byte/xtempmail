@@ -27,7 +27,7 @@ Download File Attachment
     @mail.on.message(filter=(lambda msg: msg.attament))
     def get(data: EmailMessage):
         for i in data.attachments:
-            i.download(i.name) #save as file
+            i.save_as_file(i.name) #save as file
             i.download().getvalue() # save as BytesIO Object
     mail.listen_new_message(interval=2)
 
@@ -64,13 +64,11 @@ Reply Message
     @app.on.message()
     def get(data: EmailMessage):
         print(f"\tfrom: {data.from_mail}\n\tsubject: {data.subject}\n\tpesan: {data.text}\n\tReply -> Hapus")
-        option = {}
         ok = []
         for i in data.attachments: # -> Forward attachment
             ok.append(( i.name, i.download()))
-        option['multiply_file'] = tuple(ok)
         if data.from_is_local:
-            data.from_mail.send_message(data.subject,data.text, **option) # -> Forward message
+            data.from_mail.send_message(data.subject,data.text, multiply_file=ok) # -> Forward message
     app.listen_new_message(interval=2) 
 
 

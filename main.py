@@ -1,3 +1,5 @@
+from io import BytesIO
+from typing import Any
 from xtempmail import Email, extension
 import logging
 from xtempmail.mail import EmailMessage
@@ -23,7 +25,6 @@ def get_message_media(data: EmailMessage):
 @app.on.message(lambda x:x.from_mail.__str__().endswith('@gmail.com'))
 def getGmailMessage(data: EmailMessage):
     print(f'Gmail: {data.from_mail}')
-
 
 if __name__ == '__main__':
     try:
