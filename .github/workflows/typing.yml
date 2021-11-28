@@ -20,7 +20,7 @@ jobs:
         pip install flake8
     - name: TESTING Typing
       run: |
-        mypy .
+        python3 -m mypy .
     - name: PEP8 Test
       run: |
-        flake8 xtempmail
+        python3 -m flake8 xtempmail
