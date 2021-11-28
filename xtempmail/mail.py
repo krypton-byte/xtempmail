@@ -171,7 +171,9 @@ class Attachment:
         bins = requests.get(
             f'https://tempmail.plus/api/mails/{self.mail_id}'
             f'/attachments/{self.id}',
-            params={'email': self.myemail, 'epin': ''}
+            params={
+                'email': self.myemail,
+                'epin': ''}
         )
         return BytesIO(bins.content)
 
@@ -235,12 +237,13 @@ class Email(requests.Session):
     def get_all_message(self) -> list:
         data = []
         log.info('Get All Message')
-        for mail in self.get(
-            'https://tempmail.plus/api/mails',
-            params={
+        params: dict[str, Union[str, int]] = {
                 'email': self.email,
                 'first_id': self.first_id,
-                'epin': ''}).json()['mail_list']:
+                'epin': ''}
+        for mail in self.get(
+                'https://tempmail.plus/api/mails',
+                params=params).json()['mail_list']:
             data.append(self.get_mail(mail['mail_id']))
         return data
 
@@ -254,12 +257,13 @@ class Email(requests.Session):
     ]:
         while True:
             try:
-                for mail in self.get(
-                    'https://tempmail.plus/api/mails',
-                    params={
+                params: dict[str, Union[str, int]] = {
                         'email': self.email,
                         'first_id': self.first_id,
-                        'epin': ''}).json()['mail_list']:
+                        'epin': ''}
+                for mail in self.get(
+                        'https://tempmail.plus/api/mails',
+                        params=params).json()['mail_list']:
                     if mail['mail_id'] not in self.email_id:
                         recv = self.get_mail(mail['mail_id'])
                         log.info(
@@ -278,12 +282,13 @@ class Email(requests.Session):
 
         :param id: mail_id
         """
-        to = self.get(
-            f'https://tempmail.plus/api/mails/{id}',
-            params={
+        params: dict[str, Union[str, int]] = {
                 'email': self.email,
                 'first_id': self.first_id,
-                'epin': ''}).json()
+                'epin': ''}
+        to = self.get(
+            f'https://tempmail.plus/api/mails/{id}',
+            params=params).json()
         to['to'] = self
         log.info(f'Get Message From ID: {id.__repr__()}')
         return EmailMessage(**to)
