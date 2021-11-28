@@ -19,8 +19,7 @@ jobs:
         python -m pip install -r requirements-dev.txt
         pip install flake8
     - name: TESTING Typing
-      run: |
-        python3.9 -m mypy .
+      run: python3.9 -m mypy .
     - name: PEP8 Test
       run: |
         python3.9 -m flake8 xtempmail
