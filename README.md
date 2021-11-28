@@ -16,3 +16,6 @@ $ pip install xtempmail
 ```
 example/main.py
 ```
+
+# Demo
+<img src="assets/res.webp">
