@@ -1,8 +1,6 @@
 from xtempmail import Email, extension
 import logging
 from xtempmail.mail import EmailMessage
-import requests
-requests.get('https://google.com',params={'a':1})
 log = logging.getLogger('xtempmail')
 log.setLevel(logging.INFO)
 app = Email(name='krypton', ext=extension[1])
