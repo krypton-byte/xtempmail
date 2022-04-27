@@ -26,7 +26,11 @@ def getGmailMessage(data: EmailMessage):
 
 if __name__ == '__main__':
     try:
-        app.listen_new_message(1)
+        while True:
+            proc = app.listenbg()
+            input('enter to unsubribe')
+            proc.dispose()
+            input('enter to start')
     except KeyboardInterrupt:
         app.destroy() #destroy inbox
         print('destroyed')

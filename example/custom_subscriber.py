@@ -1,11 +1,13 @@
 from xtempmail import Email, extension
 import logging
 from xtempmail.mail import EmailMessage
+from xtempmail.mail import event
 log = logging.getLogger('xtempmail')
 log.setLevel(logging.INFO)
 app = Email(name='krypton', ext=extension[1])
+cb = event()
 
-@app.on.message()
+@cb.message()
 def baca(data: EmailMessage):
     print(f"\tfrom: {data.from_mail}\n\tsubject: {data.subject}\n\tpesan: {data.text}\n\tReply -> Hapus")
     ok = []
@@ -15,18 +17,22 @@ def baca(data: EmailMessage):
         data.from_mail.send_message(data.subject, data.text, multiply_file=ok) # -> Forward message
     data.delete()  #delete message
 
-@app.on.message(lambda msg:msg.attachments)
+@cb.message(lambda msg:msg.attachments)
 def get_message_media(data: EmailMessage):
     print(f'attachment: {[i.name for i in data.attachments]}')
 
-@app.on.message(lambda x:x.from_mail.__str__().endswith('@gmail.com'))
+@cb.message(lambda x:x.from_mail.__str__().endswith('@gmail.com'))
 def getGmailMessage(data: EmailMessage):
     print(f'Gmail: {data.from_mail}')
 
 
 if __name__ == '__main__':
     try:
-        app.listen_new_message(1)
+        while True:
+            proc = app.listenbg(subscribe=cb.on_message)
+            input('enter to unsubribe')
+            proc.dispose()
+            input('enter to start')
     except KeyboardInterrupt:
         app.destroy() #destroy inbox
         print('destroyed')
