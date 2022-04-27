@@ -7,10 +7,9 @@ import time
 from typing import Any, Callable, Generator, Optional, Union
 import reactivex
 from reactivex.abc.disposable import DisposableBase
-from reactivex.scheduler import ThreadPoolScheduler, threadpoolscheduler
+from reactivex.scheduler import ThreadPoolScheduler
 from reactivex import operators
 import requests
-from multiprocessing import cpu_count
 author = "krypton-byte"
 logging.basicConfig(format='%(asctime)s  %(message)s', level=logging.INFO)
 log = logging.getLogger('xtempmail')
@@ -379,7 +378,6 @@ class Email(requests.Session):
                     'text': text
                 }, files=tuple(files)).json()['result']
 
-
     def listenbg(
         self,
         interval: int = 1,
@@ -388,7 +386,10 @@ class Email(requests.Session):
     ) -> DisposableBase:
         pool = [thread] if thread else []
         m = self.get_new_message(0)
-        return reactivex.interval(interval).pipe(operators.map(lambda x:m.__next__()), *pool).subscribe(on_next=subscribe or self.on.on_message)
+        return reactivex.interval(interval).pipe(
+            operators.map(lambda x: m.__next__()),
+            *pool).subscribe(
+                on_next=subscribe or self.on.on_message)
 
     def listen_new_message(self, interval: int):
         """
