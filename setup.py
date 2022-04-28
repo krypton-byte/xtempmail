@@ -16,7 +16,7 @@ setup(
   keywords = ['temporary','mail','email','autoreply'], 
   install_requires=[           
           'requests',
-          'Rx'
+          'reactivex'
       ],
   classifiers=[
     'Development Status :: 3 - Alpha',      
