@@ -140,7 +140,7 @@ class Attachment:
     :param mail: mail
     :param mail_id: Mail Identity
     :param attachment_id: Attachment Identity
-    :param contnet_id: str
+    :param content_id: str
     :param name: filename
     :param size: Filesize
     """
