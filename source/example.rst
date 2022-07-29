@@ -40,6 +40,7 @@ Send Message
     mail = Email('kryptonn', extension[1])
     mail.send_message('example@mailto.plus', 'subject', 'text')
 
+
 Send Message With File
 -----------------------
 
@@ -94,3 +95,27 @@ Filter Message
         print(data)
     
     mail.listen_new_message(interval=2)
+
+Locked Inbox With PIN
+---------------------
+.. code-block:: python
+
+    from xtempmail import extension, Email
+    mail = Email('krypton', extension[1])
+    mail.Lock_Inbox('pin1234', 60) #locked for 60 minutes, PIN is pin1234
+
+Unlock Inbox With PIN
+---------------------
+.. code-block:: python
+
+    from xtempmail import extension, Email
+    mail = Email('krypton', extension[1], epin='pin1234')
+    mail.protected #if it returns true, the inbox is still locked
+
+Delete Lock
+-------------
+.. code-block:: python
+
+    from xtempmail import extension, Email
+    mail = Email('krypton', extension[1], epin='pin1234)
+    mail.Delete_Lock()

@@ -13,6 +13,7 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/jquery.js"></script>
         <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -71,37 +72,71 @@
 <span class="kn">from</span> <span class="nn">io</span> <span class="kn">import</span> <span class="n">BytesIO</span>
 <span class="kn">from</span> <span class="nn">random</span> <span class="kn">import</span> <span class="n">randint</span>
 <span class="kn">import</span> <span class="nn">time</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Generator</span><span class="p">,</span> <span class="n">Union</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Generator</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
+<span class="kn">import</span> <span class="nn">reactivex</span>
+<span class="kn">from</span> <span class="nn">reactivex.abc.disposable</span> <span class="kn">import</span> <span class="n">DisposableBase</span>
+<span class="kn">from</span> <span class="nn">reactivex.scheduler</span> <span class="kn">import</span> <span class="n">ThreadPoolScheduler</span>
+<span class="kn">from</span> <span class="nn">reactivex</span> <span class="kn">import</span> <span class="n">operators</span>
 <span class="kn">import</span> <span class="nn">requests</span>
-
 <span class="n">author</span> <span class="o">=</span> <span class="s2">&quot;krypton-byte&quot;</span>
 <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%(asctime)s</span><span class="s1">  </span><span class="si">%(message)s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
 <span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;xtempmail&#39;</span><span class="p">)</span>
 <span class="n">log</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
 <span class="c1"># log=logging.getLogger(&#39;xtempmail&#39;)</span>
 <span class="c1"># log.setLevel(logging.INFO)</span>
+
+
 <span class="k">class</span> <span class="nc">Mail_ID_NOTFOUND</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
     <span class="k">pass</span>
 
+
 <span class="k">class</span> <span class="nc">Parameters</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
     <span class="k">pass</span>
+
+
+<span class="k">class</span> <span class="nc">InvalidPin</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+
+<span class="k">def</span> <span class="nf">err_code</span><span class="p">(</span><span class="n">c</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="mi">1021</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">InvalidPin</span>
+
+
 <span class="k">class</span> <span class="nc">Extension</span><span class="p">:</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ex</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">ex</span> <span class="o">=</span> <span class="s1">&#39;@&#39;</span><span class="o">+</span><span class="n">ex</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ex</span> <span class="o">=</span> <span class="s1">&#39;@&#39;</span> <span class="o">+</span> <span class="n">ex</span>
+
+    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">text</span><span class="si">}{</span><span class="bp">self</span><span class="o">.</span><span class="n">ex</span><span class="o">.</span><span class="fm">__str__</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+
     <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ex</span>
+
     <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ex</span>
 
-<span class="n">extension</span> <span class="o">=</span> <span class="p">[</span> <span class="n">Extension</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;mailto.plus&#39;</span><span class="p">,</span><span class="s1">&#39;fexpost.com&#39;</span><span class="p">,</span><span class="s1">&#39;fexbox.org&#39;</span><span class="p">,</span><span class="s1">&#39;fexbox.ru&#39;</span><span class="p">,</span><span class="s1">&#39;mailbox.in.ua&#39;</span><span class="p">,</span><span class="s1">&#39;rover.info&#39;</span><span class="p">,</span><span class="s1">&#39;inpwa.com&#39;</span><span class="p">,</span><span class="s1">&#39;intopwa.com&#39;</span><span class="p">,</span><span class="s1">&#39;tofeat.com&#39;</span><span class="p">,</span><span class="s1">&#39;chitthi.in&#39;</span><span class="p">]]</span>
 
-<span class="k">class</span> <span class="nc">event</span><span class="p">:</span>
+<span class="n">extension</span> <span class="o">=</span> <span class="p">[</span><span class="n">Extension</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span>
+    <span class="s1">&#39;mailto.plus&#39;</span><span class="p">,</span> <span class="s1">&#39;fexpost.com&#39;</span><span class="p">,</span> <span class="s1">&#39;fexbox.org&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;fexbox.ru&#39;</span><span class="p">,</span> <span class="s1">&#39;mailbox.in.ua&#39;</span><span class="p">,</span> <span class="s1">&#39;rover.info&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;inpwa.com&#39;</span><span class="p">,</span> <span class="s1">&#39;intopwa.com&#39;</span><span class="p">,</span> <span class="s1">&#39;tofeat.com&#39;</span><span class="p">,</span> <span class="s1">&#39;chitthi.in&#39;</span>
+<span class="p">]]</span>
+
+
+<div class="viewcode-block" id="event"><a class="viewcode-back" href="../../docs.html#xtempmail.event">[docs]</a><span class="k">class</span> <span class="nc">event</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Event Generator</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">messages</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">def</span> <span class="nf">message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">filter</span><span class="p">:</span><span class="n">Callable</span><span class="p">[[</span><span class="n">EmailMessage</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">messages</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span>
+            <span class="nb">tuple</span><span class="p">[</span>
+                <span class="n">Callable</span><span class="p">[[</span><span class="n">EmailMessage</span><span class="p">],</span> <span class="kc">None</span><span class="p">],</span>
+                <span class="n">Callable</span><span class="p">[[</span><span class="n">EmailMessage</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span>
+            <span class="p">]</span>
+        <span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+<div class="viewcode-block" id="event.message"><a class="viewcode-back" href="../../docs.html#xtempmail.event.message">[docs]</a>    <span class="k">def</span> <span class="nf">message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">filter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">EmailMessage</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        :param filter: Optional</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -111,35 +146,52 @@
 <span class="sd">            &quot;&quot;&quot;</span>
             <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="nb">filter</span><span class="p">):</span>
                 <span class="n">sig</span> <span class="o">=</span> <span class="n">signature</span><span class="p">(</span><span class="nb">filter</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="n">Parameters</span><span class="p">(</span><span class="s1">&#39;1 Parameters Required For filter Parameter&#39;</span><span class="p">)</span>
-                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Filter Parameter: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span> \
+                        <span class="ow">or</span> <span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">Parameters</span><span class="p">(</span>
+                        <span class="s1">&#39;1 Parameters Required For filter Parameter&#39;</span><span class="p">)</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s1">&#39;Filter Parameter: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">callable</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Is not function&#39;</span><span class="p">)</span>
             <span class="n">sig</span> <span class="o">=</span> <span class="n">signature</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> \
+                    <span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="n">Parameters</span><span class="p">(</span><span class="s1">&#39;1 Parameters Required For Callback function&#39;</span><span class="p">)</span>
             <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Callback Parameter: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">f</span><span class="p">,</span><span class="nb">filter</span> <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="nb">filter</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span><span class="p">)))</span>
-        <span class="k">return</span> <span class="n">messag</span>
-    <span class="k">def</span> <span class="nf">on_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
+                <span class="n">f</span><span class="p">,</span>
+                <span class="nb">filter</span> <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="nb">filter</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="n">messag</span></div>
+
+    <span class="k">def</span> <span class="nf">on_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">EmailMessage</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">messages</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">](</span><span class="n">data</span><span class="p">):</span>
-                <span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">](</span><span class="n">data</span><span class="p">)</span>
+                <span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">](</span><span class="n">data</span><span class="p">)</span></div>
+
 
 <span class="k">def</span> <span class="nf">warn_mail</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
-    <span class="k">if</span> <span class="s1">&#39;@&#39;</span><span class="o">+</span><span class="n">e</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;@&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span><span class="o">.</span><span class="fm">__str__</span><span class="p">(),</span> <span class="n">extension</span><span class="p">)):</span>
+    <span class="k">if</span> <span class="s1">&#39;@&#39;</span> <span class="o">+</span> <span class="n">e</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;@&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span>
+            <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="fm">__str__</span><span class="p">(),</span> <span class="n">extension</span><span class="p">)):</span>
         <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;[!] @</span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;@&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1"> unsupported</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
 
 <div class="viewcode-block" id="StrangerMail"><a class="viewcode-back" href="../../docs.html#xtempmail.StrangerMail">[docs]</a><span class="k">class</span> <span class="nc">StrangerMail</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        :param account: Email</span>
 <span class="sd">        :param stranger: str</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">account</span><span class="p">,</span> <span class="n">stranger</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">account</span><span class="p">:</span> <span class="n">Email</span><span class="p">,</span> <span class="n">stranger</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">email</span> <span class="o">=</span> <span class="n">stranger</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">account</span><span class="p">:</span><span class="n">Email</span> <span class="o">=</span> <span class="n">account</span>
-<div class="viewcode-block" id="StrangerMail.send_message"><a class="viewcode-back" href="../../docs.html#xtempmail.StrangerMail.send_message">[docs]</a>    <span class="k">def</span> <span class="nf">send_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;file&#39;</span><span class="p">,</span> <span class="n">multiply_file</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">account</span> <span class="o">=</span> <span class="n">account</span>
+
+<div class="viewcode-block" id="StrangerMail.send_message"><a class="viewcode-back" href="../../docs.html#xtempmail.StrangerMail.send_message">[docs]</a>    <span class="k">def</span> <span class="nf">send_message</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">file</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">filename</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">multiply_file</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">list</span><span class="p">]</span> <span class="o">=</span> <span class="p">[])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        :param subject: required</span>
 <span class="sd">        :param text: required</span>
@@ -147,51 +199,83 @@
 <span class="sd">        :param filename: Optional</span>
 <span class="sd">        :param multiply_file: Optional</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">account</span><span class="o">.</span><span class="n">send_mail</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="n">text</span><span class="p">,</span> <span class="n">file</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">multiply_file</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">account</span><span class="o">.</span><span class="n">send_mail</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span>
+                        <span class="n">subject</span><span class="p">,</span>
+                        <span class="n">text</span><span class="p">,</span>
+                        <span class="n">file</span><span class="p">,</span>
+                        <span class="n">filename</span><span class="p">,</span>
+                        <span class="n">multiply_file</span>
+                <span class="p">)</span></div>
+
     <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">email</span></div>
+
 
 <div class="viewcode-block" id="Attachment"><a class="viewcode-back" href="../../docs.html#xtempmail.Attachment">[docs]</a><span class="k">class</span> <span class="nc">Attachment</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    :param mail: mail</span>
 <span class="sd">    :param mail_id: Mail Identity</span>
 <span class="sd">    :param attachment_id: Attachment Identity</span>
-<span class="sd">    :param contnet_id: str</span>
+<span class="sd">    :param content_id: str</span>
 <span class="sd">    :param name: filename</span>
 <span class="sd">    :param size: Filesize</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mail</span><span class="p">,</span> <span class="n">mail_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">attachment_id</span><span class="p">:</span><span class="nb">int</span><span class="p">,</span> <span class="n">content_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span><span class="nb">int</span> <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">mail</span><span class="p">,</span>
+            <span class="n">mail_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+            <span class="n">attachment_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+            <span class="n">content_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+            <span class="n">myemail</span><span class="p">:</span> <span class="n">Email</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">mail</span> <span class="o">=</span> <span class="n">mail</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">mail_id</span> <span class="o">=</span> <span class="n">mail_id</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">attachment_id</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">content_id</span> <span class="o">=</span> <span class="n">content_id</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="n">size</span>
-<div class="viewcode-block" id="Attachment.download"><a class="viewcode-back" href="../../docs.html#xtempmail.Attachment.download">[docs]</a>    <span class="k">def</span> <span class="nf">download</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">Union</span><span class="p">[</span><span class="n">BytesIO</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">myemail</span> <span class="o">=</span> <span class="n">myemail</span>
+
+<div class="viewcode-block" id="Attachment.download"><a class="viewcode-back" href="../../docs.html#xtempmail.Attachment.download">[docs]</a>    <span class="k">def</span> <span class="nf">download</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BytesIO</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        :param filename: str-&gt;save as file, bool -&gt; BytesIO</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Download File, Attachment ID: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1"> FROM: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mail</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1"> NAME: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-        <span class="n">bins</span><span class="o">=</span><span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;https://tempmail.plus/api/mails/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mail_id</span><span class="si">}</span><span class="s1">/attachments/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span><span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;email&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">mail</span><span class="p">,</span> <span class="s1">&#39;epin&#39;</span><span class="p">:</span><span class="s1">&#39;&#39;</span><span class="p">})</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-            <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span><span class="s1">&#39;wb&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">bins</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">BytesIO</span><span class="p">(</span><span class="n">bins</span><span class="o">.</span><span class="n">content</span><span class="p">)</span></div>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;Download File, Attachment ID: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1"> &#39;</span>
+            <span class="sa">f</span><span class="s1">&#39;FROM: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mail</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1"> &#39;</span>
+            <span class="sa">f</span><span class="s1">&#39;NAME: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">bins</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">myemail</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;https://tempmail.plus/api/mails/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mail_id</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="sa">f</span><span class="s1">&#39;/attachments/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">BytesIO</span><span class="p">(</span><span class="n">bins</span><span class="o">.</span><span class="n">content</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">save_as_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">download</span><span class="p">()</span><span class="o">.</span><span class="n">getvalue</span><span class="p">())</span>
+
     <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;&lt;[&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&quot; size:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s1">]&gt;&#39;</span></div>
+
 
 <div class="viewcode-block" id="EmailMessage"><a class="viewcode-back" href="../../docs.html#xtempmail.EmailMessage">[docs]</a><span class="k">class</span> <span class="nc">EmailMessage</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    :param kwargs: required</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">attachments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Attachment</span><span class="p">]</span><span class="o">=</span><span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">attachments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Attachment</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">from_mail</span> <span class="o">=</span> <span class="n">StrangerMail</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;to&#39;</span><span class="p">],</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;from_mail&#39;</span><span class="p">])</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;attachments&#39;</span><span class="p">,{}):</span>
-            <span class="n">attach</span> <span class="o">=</span> <span class="n">Attachment</span><span class="p">(</span><span class="o">**</span><span class="n">i</span><span class="p">,</span> <span class="n">mail_id</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;to&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">email</span><span class="p">,</span> <span class="n">mail</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;from_mail&#39;</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;attachments&#39;</span><span class="p">,</span> <span class="p">{}):</span>
+            <span class="n">attach</span> <span class="o">=</span> <span class="n">Attachment</span><span class="p">(</span>
+                <span class="o">**</span><span class="n">i</span><span class="p">,</span>
+                <span class="n">mail_id</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;mail_id&#39;</span><span class="p">],</span>
+                <span class="n">mail</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;from_mail&#39;</span><span class="p">],</span>
+                <span class="n">myemail</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;to&#39;</span><span class="p">])</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">attachments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">attach</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">date</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">from_is_local</span><span class="p">:</span><span class="nb">bool</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;from_is_local&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">from_is_local</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;from_is_local&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">from_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;from_name&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">html</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;html&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">is_tls</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;is_tls&quot;</span><span class="p">]</span>
@@ -201,59 +285,104 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">subject</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;subject&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;text&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">:</span> <span class="n">Email</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;to&quot;</span><span class="p">]</span>
-<div class="viewcode-block" id="EmailMessage.delete"><a class="viewcode-back" href="../../docs.html#xtempmail.EmailMessage.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">-&gt;</span><span class="nb">bool</span><span class="p">:</span>
+
+<div class="viewcode-block" id="EmailMessage.delete"><a class="viewcode-back" href="../../docs.html#xtempmail.EmailMessage.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Delete Message</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="o">.</span><span class="n">delete_message</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mail_id</span><span class="p">)</span></div>
+
     <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;&lt;[from:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="si">}</span><span class="s1"> subject:&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">subject</span><span class="si">}</span><span class="s1">&quot;&quot; attachment: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">attachments</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span><span class="si">}</span><span class="s1">]&gt;&#39;</span></div>
-        
+        <span class="k">return</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;&lt;[from:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="si">}</span><span class="s1"> subject:&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">subject</span><span class="si">}</span><span class="s1">&quot;&quot; &#39;</span>
+                <span class="sa">f</span><span class="s1">&#39;attachment: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">attachments</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span><span class="si">}</span><span class="s1">]&gt;&#39;</span><span class="p">)</span></div>
+
+
 <div class="viewcode-block" id="Email"><a class="viewcode-back" href="../../docs.html#xtempmail.Email">[docs]</a><span class="k">class</span> <span class="nc">Email</span><span class="p">(</span><span class="n">requests</span><span class="o">.</span><span class="n">Session</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span><span class="nb">str</span><span class="p">,</span> <span class="n">ext</span><span class="p">:</span><span class="n">Extension</span> <span class="o">=</span> <span class="n">extension</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :param name: Email username</span>
+<span class="sd">    :param ext: Extension</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">ext</span><span class="p">:</span> <span class="n">Extension</span> <span class="o">=</span> <span class="n">extension</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+        <span class="n">epin</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">email</span> <span class="o">=</span> <span class="n">name</span><span class="o">+</span><span class="n">ext</span><span class="o">.</span><span class="fm">__str__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">email</span> <span class="o">=</span> <span class="n">ext</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">first_id</span> <span class="o">=</span> <span class="n">randint</span><span class="p">(</span><span class="mi">10000000</span><span class="p">,</span> <span class="mi">99999999</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">email_id</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">on</span> <span class="o">=</span> <span class="n">event</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">email_id</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;email&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span>
+                <span class="s1">&#39;first_id&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_id</span><span class="p">,</span>
+                <span class="s1">&#39;epin&#39;</span><span class="p">:</span> <span class="n">epin</span><span class="p">}</span>
         <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Email: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-    <span class="k">def</span> <span class="nf">get_all_message</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">-&gt;</span><span class="nb">list</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">on</span> <span class="o">=</span> <span class="n">event</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get_all_message</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
         <span class="n">data</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Get All Message&#39;</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">mail</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;https://tempmail.plus/api/mails&#39;</span><span class="p">,</span><span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;email&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span> <span class="s1">&#39;first_id&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">first_id</span><span class="p">,</span> <span class="s1">&#39;epin&#39;</span><span class="p">:</span><span class="s1">&#39;&#39;</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;mail_list&#39;</span><span class="p">]:</span>
+        <span class="n">mail_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="s1">&#39;https://tempmail.plus/api/mails&#39;</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">mail_</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;err&#39;</span><span class="p">):</span>
+            <span class="n">ob</span> <span class="o">=</span> <span class="n">err_code</span><span class="p">(</span><span class="n">mail_</span><span class="p">[</span><span class="s1">&#39;err&#39;</span><span class="p">][</span><span class="s1">&#39;code&#39;</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">ob</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ob</span><span class="p">(</span><span class="n">mail_</span><span class="p">[</span><span class="s1">&#39;err&#39;</span><span class="p">][</span><span class="s1">&#39;msg&#39;</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">mail</span> <span class="ow">in</span> <span class="n">mail_</span><span class="p">[</span><span class="s1">&#39;mail_list&#39;</span><span class="p">]:</span>
             <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_mail</span><span class="p">(</span><span class="n">mail</span><span class="p">[</span><span class="s1">&#39;mail_id&#39;</span><span class="p">]))</span>
         <span class="k">return</span> <span class="n">data</span>
 
-    <span class="k">def</span> <span class="nf">get_new_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">Generator</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">get_new_message</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">interval</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span>
+        <span class="n">EmailMessage</span><span class="p">,</span>
+        <span class="n">EmailMessage</span><span class="p">,</span>
+        <span class="n">EmailMessage</span>
+    <span class="p">]:</span>
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="k">for</span> <span class="n">mail</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;https://tempmail.plus/api/mails&#39;</span><span class="p">,</span><span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;email&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span> <span class="s1">&#39;first_id&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">first_id</span><span class="p">,</span> <span class="s1">&#39;epin&#39;</span><span class="p">:</span><span class="s1">&#39;&#39;</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;mail_list&#39;</span><span class="p">]:</span>
+                <span class="k">for</span> <span class="n">mail</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                        <span class="s1">&#39;https://tempmail.plus/api/mails&#39;</span><span class="p">,</span>
+                        <span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;mail_list&#39;</span><span class="p">]:</span>
                     <span class="k">if</span> <span class="n">mail</span><span class="p">[</span><span class="s1">&#39;mail_id&#39;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">email_id</span><span class="p">:</span>
-                        <span class="n">recv</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">get_mail</span><span class="p">(</span><span class="n">mail</span><span class="p">[</span><span class="s1">&#39;mail_id&#39;</span><span class="p">])</span>
-                        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;New message from </span><span class="si">{</span><span class="n">mail</span><span class="p">[</span><span class="s2">&quot;from_mail&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> subject: </span><span class="si">{</span><span class="n">mail</span><span class="p">[</span><span class="s2">&quot;subject&quot;</span><span class="p">]</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1"> ID: </span><span class="si">{</span><span class="n">mail</span><span class="p">[</span><span class="s2">&quot;mail_id&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                        <span class="n">recv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_mail</span><span class="p">(</span><span class="n">mail</span><span class="p">[</span><span class="s1">&#39;mail_id&#39;</span><span class="p">])</span>
+                        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s1">&#39;New message from </span><span class="si">{</span><span class="n">mail</span><span class="p">[</span><span class="s2">&quot;from_mail&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> &#39;</span>
+                            <span class="sa">f</span><span class="s1">&#39;subject: </span><span class="si">{</span><span class="n">mail</span><span class="p">[</span><span class="s2">&quot;subject&quot;</span><span class="p">]</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span>
+                            <span class="sa">f</span><span class="s1">&#39; ID: </span><span class="si">{</span><span class="n">mail</span><span class="p">[</span><span class="s2">&quot;mail_id&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">email_id</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mail</span><span class="p">[</span><span class="s1">&#39;mail_id&#39;</span><span class="p">])</span>
                         <span class="k">yield</span> <span class="n">recv</span>
             <span class="k">except</span> <span class="n">requests</span><span class="o">.</span><span class="n">exceptions</span><span class="o">.</span><span class="n">SSLError</span><span class="p">:</span>
-                <span class="kc">True</span>
+                <span class="k">pass</span>
             <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">interval</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Email.get_mail"><a class="viewcode-back" href="../../docs.html#xtempmail.Email.get_mail">[docs]</a>    <span class="k">def</span> <span class="nf">get_mail</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">EmailMessage</span><span class="p">:</span>
+<div class="viewcode-block" id="Email.get_mail"><a class="viewcode-back" href="../../docs.html#xtempmail.Email.get_mail">[docs]</a>    <span class="k">def</span> <span class="nf">get_mail</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EmailMessage</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Get Message Content</span>
 
 <span class="sd">        :param id: mail_id</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">to</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;https://tempmail.plus/api/mails/</span><span class="si">{</span><span class="nb">id</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;email&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span> <span class="s1">&#39;first_id&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">first_id</span><span class="p">,</span> <span class="s1">&#39;epin&#39;</span><span class="p">:</span><span class="s1">&#39;&#39;</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="n">to</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;https://tempmail.plus/api/mails/</span><span class="si">{</span><span class="nb">id</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
         <span class="n">to</span><span class="p">[</span><span class="s1">&#39;to&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span>
         <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Get Message From ID: </span><span class="si">{</span><span class="nb">id</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">EmailMessage</span><span class="p">(</span><span class="o">**</span><span class="n">to</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Email.delete_message"><a class="viewcode-back" href="../../docs.html#xtempmail.Email.delete_message">[docs]</a>    <span class="k">def</span> <span class="nf">delete_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span><span class="o">-&gt;</span><span class="nb">bool</span><span class="p">:</span>
+<div class="viewcode-block" id="Email.delete_message"><a class="viewcode-back" href="../../docs.html#xtempmail.Email.delete_message">[docs]</a>    <span class="k">def</span> <span class="nf">delete_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        :param id: mail_id</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="nb">id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">email_id</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">email_id</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
-        <span class="n">status</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;https://tempmail.plus/api/mails/</span><span class="si">{</span><span class="nb">id</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;email&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span> <span class="s1">&#39;epin&#39;</span><span class="p">:</span><span class="s1">&#39;&#39;</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;result&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">email_id</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">email_id</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
+        <span class="n">status</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;https://tempmail.plus/api/mails/</span><span class="si">{</span><span class="nb">id</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">{</span>
+                <span class="s1">&#39;email&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span>
+                <span class="s1">&#39;epin&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span>
+            <span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;result&#39;</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">status</span><span class="p">:</span>
             <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Email Message Successfully deleted&#39;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -261,16 +390,32 @@
             <span class="k">raise</span> <span class="n">Mail_ID_NOTFOUND</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">status</span></div>
 
-<div class="viewcode-block" id="Email.destroy"><a class="viewcode-back" href="../../docs.html#xtempmail.Email.destroy">[docs]</a>    <span class="k">def</span> <span class="nf">destroy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">-&gt;</span><span class="nb">bool</span><span class="p">:</span>
+<div class="viewcode-block" id="Email.destroy"><a class="viewcode-back" href="../../docs.html#xtempmail.Email.destroy">[docs]</a>    <span class="k">def</span> <span class="nf">destroy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Destroy Inbox</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">stat</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s1">&#39;https://tempmail.plus/api/mails/&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;email&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span> <span class="s1">&#39;first_id&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">first_id</span><span class="p">,</span> <span class="s1">&#39;epin&#39;</span><span class="p">:</span><span class="s1">&#39;&#39;</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;result&#39;</span><span class="p">)</span>
+        <span class="n">stat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span>
+            <span class="s1">&#39;https://tempmail.plus/api/mails/&#39;</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">{</span>
+                <span class="s1">&#39;email&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span>
+                <span class="s1">&#39;first_id&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_id</span><span class="p">,</span>
+                <span class="s1">&#39;epin&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span>
+            <span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;result&#39;</span><span class="p">)</span>
         <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Inbox Destroyed&#39;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">stat</span></div>
-<div class="viewcode-block" id="Email.send_mail"><a class="viewcode-back" href="../../docs.html#xtempmail.Email.send_mail">[docs]</a>    <span class="k">def</span> <span class="nf">send_mail</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">to</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">file</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;file&#39;</span><span class="p">,</span><span class="n">multiply_file</span> <span class="o">=</span> <span class="p">[])</span><span class="o">-&gt;</span><span class="nb">bool</span><span class="p">:</span>
+
+<div class="viewcode-block" id="Email.send_mail"><a class="viewcode-back" href="../../docs.html#xtempmail.Email.send_mail">[docs]</a>    <span class="k">def</span> <span class="nf">send_mail</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">to</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">file</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">filename</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">multiply_file</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">list</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        :param to: Email [str | StrangerMail] -&gt; Not Support external email (gmail, yahoo, etc)</span>
+<span class="sd">        :param to: Email [str | StrangerMail] -&gt; Not Support external email\</span>
+<span class="sd">        (Gmail, Yahoo, etc.)</span>
 <span class="sd">        :param subject: str</span>
 <span class="sd">        :param text: str</span>
 <span class="sd">        :param file: filename/file path</span>
@@ -278,24 +423,49 @@
 <span class="sd">        :param multiply_file: tuple (BytesIO|path, str)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">warn_mail</span><span class="p">(</span><span class="n">to</span><span class="p">)</span>
-        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Send Message From: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1"> To: </span><span class="si">{</span><span class="n">to</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1"> Subject: </span><span class="si">{</span><span class="n">subject</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1"> Attachment: </span><span class="si">{</span><span class="nb">bool</span><span class="p">(</span><span class="n">file</span> <span class="ow">or</span> <span class="n">multiply_file</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-        <span class="n">files</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;Send Message From: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1"> To: &#39;</span>
+                <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">to</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1"> Subject: </span><span class="si">{</span><span class="n">subject</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span><span class="si">}</span><span class="s1"> &#39;</span>
+                <span class="sa">f</span><span class="s1">&#39;Attachment: </span><span class="si">{</span><span class="nb">bool</span><span class="p">(</span><span class="n">file</span> <span class="ow">or</span> <span class="n">multiply_file</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">files</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Union</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">to</span> <span class="o">=</span> <span class="n">to</span><span class="o">.</span><span class="n">email</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">to</span><span class="p">,</span> <span class="n">StrangerMail</span><span class="p">)</span> <span class="k">else</span> <span class="n">to</span>
         <span class="k">if</span> <span class="n">file</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
                 <span class="k">if</span> <span class="n">filename</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-                    <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;file&#39;</span><span class="p">,(</span><span class="n">filename</span><span class="p">,</span><span class="nb">open</span><span class="p">(</span><span class="n">file</span><span class="p">,</span><span class="s1">&#39;rb&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">())))</span>
+                    <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
+                        <span class="s1">&#39;file&#39;</span><span class="p">,</span>
+                        <span class="p">(</span><span class="n">filename</span> <span class="ow">or</span> <span class="n">file</span><span class="p">,</span> <span class="nb">open</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">())))</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;file&#39;</span><span class="p">,</span><span class="nb">open</span><span class="p">(</span><span class="n">file</span><span class="p">,</span><span class="s1">&#39;rb&#39;</span><span class="p">)))</span>
+                    <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;file&#39;</span><span class="p">,</span> <span class="nb">open</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)))</span>
             <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">BytesIO</span><span class="p">):</span>
-                <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;file&#39;</span><span class="p">,(</span><span class="n">filename</span><span class="p">,</span><span class="n">file</span><span class="o">.</span><span class="n">getvalue</span><span class="p">())))</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">multiply_file</span><span class="p">:</span>
+                <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;file&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">file</span><span class="o">.</span><span class="n">getvalue</span><span class="p">())))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">multiply_file</span> <span class="ow">or</span> <span class="p">[]):</span>
             <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;file&#39;</span><span class="p">,</span><span class="nb">open</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="s1">&#39;rb&#39;</span><span class="p">)))</span>
+                <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;file&#39;</span><span class="p">,</span> <span class="nb">open</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;rb&#39;</span><span class="p">)))</span>
             <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">x</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;file&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()))</span>
-                <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">&#39;https://tempmail.plus/api/mails/&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;email&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span><span class="s1">&#39;to&#39;</span><span class="p">:</span> <span class="n">to</span><span class="p">,</span><span class="s1">&#39;subject&#39;</span><span class="p">:</span> <span class="n">subject</span><span class="p">,</span><span class="s1">&#39;content_type&#39;</span><span class="p">:</span> <span class="s1">&#39;text/html&#39;</span><span class="p">,</span><span class="s1">&#39;text&#39;</span><span class="p">:</span> <span class="n">text</span><span class="p">},</span><span class="n">files</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">files</span><span class="p">))</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;result&#39;</span><span class="p">]</span></div>
+                <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;file&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">getvalue</span><span class="p">())))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+                <span class="s1">&#39;https://tempmail.plus/api/mails/&#39;</span><span class="p">,</span>
+                <span class="n">data</span><span class="o">=</span><span class="p">{</span>
+                    <span class="s1">&#39;email&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="p">,</span>
+                    <span class="s1">&#39;to&#39;</span><span class="p">:</span> <span class="n">to</span><span class="p">,</span>
+                    <span class="s1">&#39;subject&#39;</span><span class="p">:</span> <span class="n">subject</span><span class="p">,</span>
+                    <span class="s1">&#39;content_type&#39;</span><span class="p">:</span> <span class="s1">&#39;text/html&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;text&#39;</span><span class="p">:</span> <span class="n">text</span>
+                <span class="p">},</span> <span class="n">files</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">files</span><span class="p">))</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;result&#39;</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">listenbg</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">interval</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">thread</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ThreadPoolScheduler</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">subscribe</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">EmailMessage</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DisposableBase</span><span class="p">:</span>
+        <span class="n">pool</span> <span class="o">=</span> <span class="p">[</span><span class="n">thread</span><span class="p">]</span> <span class="k">if</span> <span class="n">thread</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_new_message</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">reactivex</span><span class="o">.</span><span class="n">interval</span><span class="p">(</span><span class="n">interval</span><span class="p">)</span><span class="o">.</span><span class="n">pipe</span><span class="p">(</span>
+            <span class="n">operators</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="fm">__next__</span><span class="p">()),</span>
+            <span class="o">*</span><span class="n">pool</span><span class="p">)</span><span class="o">.</span><span class="n">subscribe</span><span class="p">(</span>
+                <span class="n">on_next</span><span class="o">=</span><span class="n">subscribe</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">on</span><span class="o">.</span><span class="n">on_message</span><span class="p">)</span>
 
 <div class="viewcode-block" id="Email.listen_new_message"><a class="viewcode-back" href="../../docs.html#xtempmail.Email.listen_new_message">[docs]</a>    <span class="k">def</span> <span class="nf">listen_new_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -305,6 +475,45 @@
         <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Interval: </span><span class="si">{</span><span class="n">interval</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_new_message</span><span class="p">(</span><span class="n">interval</span><span class="o">=</span><span class="n">interval</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">on</span><span class="o">.</span><span class="n">on_message</span><span class="p">(</span><span class="n">i</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">secret_address</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">protected</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidPin</span><span class="p">()</span>
+        <span class="n">em</span><span class="p">,</span> <span class="n">ex</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s1">&#39;https://tempmail.plus/api/box/hidden&#39;</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;email&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;@&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Email</span><span class="p">(</span><span class="n">em</span><span class="p">,</span> <span class="n">Extension</span><span class="p">(</span><span class="n">ex</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">protected</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;https://tempmail.plus/api/mails&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;err&#39;</span><span class="p">):</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">err_code</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;err&#39;</span><span class="p">][</span><span class="s1">&#39;code&#39;</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">f</span> <span class="o">==</span> <span class="n">InvalidPin</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">Lock_Inbox</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pin</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">duration_minutes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">protected</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidPin</span><span class="p">()</span>
+        <span class="n">cp_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">cp_params</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s1">&#39;ttl_minutes&#39;</span><span class="p">:</span> <span class="n">duration_minutes</span><span class="p">,</span>
+            <span class="s1">&#39;pin&#39;</span><span class="p">:</span> <span class="n">pin</span>
+        <span class="p">})</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="s1">&#39;https://tempmail.plus/api/box&#39;</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">cp_params</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;result&#39;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;epin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pin</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">Delete_Lock</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">protected</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidPin</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">Lock_Inbox</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
         <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;&lt;(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">email</span><span class="si">}</span><span class="s1">)&gt;&#39;</span>

@@ -26,6 +26,15 @@ class Parameters(Exception):
     pass
 
 
+class InvalidPin(Exception):
+    pass
+
+
+def err_code(c: int):
+    if c == 1021:
+        return InvalidPin
+
+
 class Extension:
     def __init__(self, ex):
         self.ex = '@' + ex
@@ -152,7 +161,7 @@ class Attachment:
             content_id: str,
             name: str,
             size: int,
-            myemail: str
+            myemail: Email
     ) -> None:
         self.mail = mail
         self.mail_id = mail_id
@@ -170,12 +179,9 @@ class Attachment:
             f'Download File, Attachment ID: {self.id} '
             f'FROM: {self.mail.__repr__()} '
             f'NAME: {self.name.__repr__()}')
-        bins = requests.get(
+        bins = self.myemail.get(
             f'https://tempmail.plus/api/mails/{self.mail_id}'
             f'/attachments/{self.id}',
-            params={
-                'email': self.myemail,
-                'epin': ''}
         )
         return BytesIO(bins.content)
 
@@ -228,24 +234,34 @@ class Email(requests.Session):
     :param name: Email username
     :param ext: Extension
     """
-    def __init__(self, name: str, ext: Extension = extension[0]) -> None:
+    def __init__(
+        self,
+        name: str,
+        ext: Extension = extension[0],
+        epin: str = ''
+    ) -> None:
         super().__init__()
         self.email = ext.apply(name)
         self.first_id = randint(10000000, 99999999)
         self.email_id: list[int] = []
+        self.params: dict[str, Union[str, int]] = {
+                'email': self.email,
+                'first_id': self.first_id,
+                'epin': epin}
         log.info(f'Email: {self.email}')
         self.on = event()
 
     def get_all_message(self) -> list:
         data = []
         log.info('Get All Message')
-        params: dict[str, Union[str, int]] = {
-                'email': self.email,
-                'first_id': self.first_id,
-                'epin': ''}
-        for mail in self.get(
-                'https://tempmail.plus/api/mails',
-                params=params).json()['mail_list']:
+        mail_ = self.get(
+                'https://tempmail.plus/api/mails'
+                ).json()
+        if mail_.get('err'):
+            ob = err_code(mail_['err']['code'])
+            if ob:
+                raise ob(mail_['err']['msg'])
+        for mail in mail_['mail_list']:
             data.append(self.get_mail(mail['mail_id']))
         return data
 
@@ -259,13 +275,9 @@ class Email(requests.Session):
     ]:
         while True:
             try:
-                params: dict[str, Union[str, int]] = {
-                        'email': self.email,
-                        'first_id': self.first_id,
-                        'epin': ''}
                 for mail in self.get(
                         'https://tempmail.plus/api/mails',
-                        params=params).json()['mail_list']:
+                        ).json()['mail_list']:
                     if mail['mail_id'] not in self.email_id:
                         recv = self.get_mail(mail['mail_id'])
                         log.info(
@@ -284,13 +296,9 @@ class Email(requests.Session):
 
         :param id: mail_id
         """
-        params: dict[str, Union[str, int]] = {
-                'email': self.email,
-                'first_id': self.first_id,
-                'epin': ''}
         to = self.get(
             f'https://tempmail.plus/api/mails/{id}',
-            params=params).json()
+            ).json()
         to['to'] = self
         log.info(f'Get Message From ID: {id.__repr__()}')
         return EmailMessage(**to)
@@ -399,6 +407,45 @@ class Email(requests.Session):
         log.info(f'Interval: {interval}')
         for i in self.get_new_message(interval=interval):
             self.on.on_message(i)
+
+    @property
+    def secret_address(self):
+        if self.protected:
+            raise InvalidPin()
+        em, ex = self.get(
+            'https://tempmail.plus/api/box/hidden'
+            ).json()['email'].split('@')
+        return Email(em, Extension(ex))
+
+    @property
+    def protected(self):
+        x = self.get('https://tempmail.plus/api/mails').json()
+        if x.get('err'):
+            f = err_code(x['err']['code'])
+            if f == InvalidPin:
+                return True
+        return False
+
+    def Lock_Inbox(self, pin: str, duration_minutes: int = 60):
+        if self.protected:
+            raise InvalidPin()
+        cp_params = self.params.copy()
+        cp_params.update({
+            'ttl_minutes': duration_minutes,
+            'pin': pin
+        })
+        if self.post(
+            'https://tempmail.plus/api/box',
+            data=cp_params
+        ).json()['result']:
+            self.params['epin'] = pin
+            return True
+        return False
+
+    def Delete_Lock(self):
+        if self.protected:
+            raise InvalidPin()
+        return self.Lock_Inbox('', 0)
 
     def __repr__(self) -> str:
         return f'<({self.email})>'
