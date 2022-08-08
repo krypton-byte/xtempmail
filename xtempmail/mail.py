@@ -10,6 +10,7 @@ from reactivex.abc.disposable import DisposableBase
 from reactivex.scheduler import ThreadPoolScheduler
 from reactivex import operators
 import requests
+from enum import Enum
 author = "krypton-byte"
 logging.basicConfig(format='%(asctime)s  %(message)s', level=logging.INFO)
 log = logging.getLogger('xtempmail')
@@ -35,6 +36,22 @@ def err_code(c: int):
         return InvalidPin
 
 
+class EMAIL(Enum):
+    MAILTO_PLUS = 'mailto.plus'
+    FEXPOST_COM = 'fexpost.com'
+    FEXBOX_ORG = 'fexbox.org'
+    FEXBOX_RU = 'fexbox.ru'
+    MAILBOX_IN_UA = 'mailbok.in.ua'
+    ROVER_INFO = 'rover.info'
+    INPWA_COM = 'inpwa.com'
+    INTOPWA_COM = 'intopwa.com'
+    TOFEAT_COM = 'tofeat.com'
+    CHITTHI_IN = 'chitthi.in'
+
+    def apply(self, text: str):
+        return f'{text}@{self.value}'
+
+
 class Extension:
     def __init__(self, ex):
         self.ex = '@' + ex
@@ -49,11 +66,7 @@ class Extension:
         return self.ex
 
 
-extension = [Extension(i) for i in [
-    'mailto.plus', 'fexpost.com', 'fexbox.org',
-    'fexbox.ru', 'mailbox.in.ua', 'rover.info',
-    'inpwa.com', 'intopwa.com', 'tofeat.com', 'chitthi.in'
-]]
+extension = [Extension(i.value) for i in EMAIL.__members__.values()]
 
 
 class event:
@@ -237,7 +250,7 @@ class Email(requests.Session):
     def __init__(
         self,
         name: str,
-        ext: Extension = extension[0],
+        ext: Union[EMAIL, Extension] = EMAIL.MAILTO_PLUS,
         epin: str = ''
     ) -> None:
         super().__init__()

@@ -4,7 +4,8 @@ from .mail import (
     EmailMessage,
     Attachment,
     StrangerMail,
-    event
+    event,
+    EMAIL
 )
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     'EmailMessage',
     'Attachment',
     'StrangerMail',
-    'event'
+    'event',
+    'EMAIL'
 ]
