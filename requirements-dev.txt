@@ -2,3 +2,4 @@ types-setuptools
 mypy==0.812
 requests
 types-requests
+httpx

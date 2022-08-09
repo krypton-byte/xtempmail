@@ -1,54 +1,32 @@
 from __future__ import annotations
 from inspect import signature
-import logging
+from asyncio.tasks import ensure_future
 from io import BytesIO
+import asyncio
+from typing import Awaitable, Callable, Union, Coroutine, Optional, Any
+import httpx
 from random import randint
-import time
-from typing import Any, Callable, Generator, Optional, Union
-import reactivex
-from reactivex.abc.disposable import DisposableBase
-from reactivex.scheduler import ThreadPoolScheduler
-from reactivex import operators
-import requests
+from .utils import log, Extension, EMAIL, err_code, extension
 from .error import (
+    Parameters,
     InvalidPIN,
-    Mail_ID_NOTFOUND,
-    Parameters
+    Mail_ID_NOTFOUND
 )
-from .utils import (
-    EMAIL,
-    err_code,
-    Extension,
-    extension
-)
-author = "krypton-byte"
-logging.basicConfig(format='%(asctime)s  %(message)s', level=logging.INFO)
-log = logging.getLogger('xtempmail')
-log.setLevel(logging.WARNING)
-# log=logging.getLogger('xtempmail')
-# log.setLevel(logging.INFO)
 
 
-class event:
-    """
-    Event Generator
-    """
-    def __init__(self) -> None:
-        self.messages: list[
+class Event:
+    def __init__(self, workers: int = 30) -> None:
+        self.workers = workers
+        self.func: list[
             tuple[
-                Callable[[EmailMessage], None],
-                Callable[[EmailMessage], Any]
+                Callable[[EmailMessage], Coroutine],
+                Union[Callable[[EmailMessage], Any], None]
             ]
         ] = []
+        self.futures = []
 
     def message(self, filter: Optional[Callable[[EmailMessage], Any]] = None):
-        """
-        :param filter: Optional
-        """
-        def messag(f: Union[Callable[[EmailMessage], None], None]):
-            """
-            :param f: Required
-            """
+        def run(f: Union[Callable[[EmailMessage], None],  Any]):
             if callable(filter):
                 sig = signature(filter)
                 if sig.parameters.keys().__len__() > 1 \
@@ -64,57 +42,16 @@ class event:
                     sig.parameters.keys().__len__() < 1:
                 raise Parameters('1 Parameters Required In Callback function')
             log.info(f'Callback Parameter: {list(sig.parameters.keys())[0]}')
-            self.messages.append((
-                f,
-                filter if callable(filter) else (lambda x: x)))
-        return messag
+            self.func.append((f, filter))
+        return run
 
-    def on_message(self, data: EmailMessage):
-        for i in self.messages:
-            if i[1](data):
-                i[0](data)
-
-
-def warn_mail(e):
-    if '@' + e.split('@')[-1] not in list(
-            map(lambda x: x.__str__(), extension)):
-        log.warning(f'[!] @{e.split("@")[-1]} unsupported\n')
-
-
-class StrangerMail:
-    """
-        :param account: Email
-        :param stranger: str
-    """
-    def __init__(self, account: Email, stranger: str) -> None:
-        self.email = stranger
-        self.account = account
-
-    def send_message(
-            self,
-            subject: str,
-            text: str,
-            file: Optional[str] = None,
-            filename: Optional[str] = None,
-            multiply_file: Optional[list] = []) -> bool:
-        """
-        :param subject: required
-        :param text: required
-        :param file: Optional
-        :param filename: Optional
-        :param multiply_file: Optional
-        """
-        return self.account.send_mail(
-                        self.email,
-                        subject,
-                        text,
-                        file,
-                        filename,
-                        multiply_file
-                )
-
-    def __repr__(self):
-        return self.email
+    async def on_message(self, data: EmailMessage):
+        log.debug('Message Received From %s ' % data.from_mail.email)
+        for i in self.func:
+            if i[1] and i[1](data):
+                self.futures.append(asyncio.ensure_future(i[0](data)))
+                if self.futures.__len__() > self.workers:
+                    await asyncio.gather(*self.futures)
 
 
 class Attachment:
@@ -144,7 +81,7 @@ class Attachment:
         self.size = size
         self.myemail = myemail
 
-    def download(self) -> BytesIO:
+    async def download(self) -> BytesIO:
         """
         :param filename: str->save as file, bool -> BytesIO
         """
@@ -152,17 +89,53 @@ class Attachment:
             f'Download File, Attachment ID: {self.id} '
             f'FROM: {self.mail.__repr__()} '
             f'NAME: {self.name.__repr__()}')
-        bins = self.myemail.get(
+        bins = await self.myemail.get(
             f'https://tempmail.plus/api/mails/{self.mail_id}'
-            f'/attachments/{self.id}',
+            f'/attachments/{self.id}'
         )
         return BytesIO(bins.content)
 
-    def save_as_file(self, filename: str) -> int:
-        return open(filename, 'wb').write(self.download().getvalue())
+    async def save_as_file(self, filename: str) -> int:
+        return open(filename, 'wb').write((await self.download()).getvalue())
 
     def __repr__(self):
         return f'<["{self.name}" size:{self.size}]>'
+
+
+class StrangerMail:
+    """
+        :param account: Email
+        :param stranger: str
+    """
+    def __init__(self, account: Email, stranger: str) -> None:
+        self.email = stranger
+        self.account = account
+
+    async def send_message(
+            self,
+            subject: str,
+            text: str,
+            file: Optional[str] = None,
+            filename: Optional[str] = None,
+            multiply_file: Optional[list] = []) -> bool:
+        """
+        :param subject: required
+        :param text: required
+        :param file: Optional
+        :param filename: Optional
+        :param multiply_file: Optional
+        """
+        return await self.account.send_mail(
+                        self.email,
+                        subject,
+                        text,
+                        file,
+                        filename,
+                        multiply_file
+                )
+
+    def __repr__(self):
+        return self.email
 
 
 class EmailMessage:
@@ -191,103 +164,104 @@ class EmailMessage:
         self.text: str = kwargs["text"]
         self.to: Email = kwargs["to"]
 
-    def delete(self) -> bool:
+    async def delete(self) -> bool:
         """
         Delete Message
         """
-        return self.to.delete_message(self.mail_id)
+        return await self.to.delete_message(self.mail_id)
 
     def __repr__(self) -> str:
         return (f'<[from:{self.to} subject:"{self.subject}"" '
                 f'attachment: {self.attachments.__len__()}]>')
 
 
-class Email(requests.Session):
-    """
-    :param name: Email username
-    :param ext: Extension
-    """
+def warn_mail(e):
+    if '@' + e.split('@')[-1] not in list(
+            map(lambda x: x.__str__(), extension)):
+        log.warning(f'[!] @{e.split("@")[-1]} unsupported\n')
+
+
+class Email(httpx.AsyncClient):
     def __init__(
         self,
         name: str,
-        ext: Union[EMAIL, Extension] = EMAIL.MAILTO_PLUS,
-        epin: str = ''
-    ) -> None:
-        super().__init__()
+        ext: Union[EMAIL, Extension],
+        epin: str = '',
+        workers: int = 40
+    ):
+        super().__init__(timeout=60)
         self.email = ext.apply(name)
+        self.on = Event(workers)
         self.first_id = randint(10000000, 99999999)
-        self.email_id: list[int] = []
+        self.emails_id = []
+        self.epin = epin
         self.params: dict[str, Union[str, int]] = {
-                'email': self.email,
-                'first_id': self.first_id,
-                'epin': epin}
+            'email': self.email,
+            'first_id': self.first_id,
+            'epin': epin
+        }
         log.info(f'Email: {self.email}')
-        self.on = event()
 
-    def get_all_message(self) -> list:
+    async def get_all_message(self) -> tuple[EmailMessage]:
         data = []
-        log.info('Get All Message')
-        mail_ = self.get(
-                'https://tempmail.plus/api/mails'
-                ).json()
+        mail_ = (await self.get('https://tempmail.plus/api/mails')).json()
         if mail_.get('err'):
             ob = err_code(mail_['err']['code'])
             if ob:
                 raise ob(mail_['err']['msg'])
         for mail in mail_['mail_list']:
             data.append(self.get_mail(mail['mail_id']))
-        return data
+        return await asyncio.gather(*data)
+    async def get_new_message(self) -> tuple[EmailMessage]:
+        mes = []
+        for mail in (await self.get(
+                'https://tempmail.plus/api/mails',
+                )).json()['mail_list']:
+            if mail['mail_id'] not in self.emails_id:
+                mes.append(ensure_future(self.get_mail(mail['mail_id'])))
+                self.emails_id.append(mail['mail_id'])
+        return await asyncio.gather(*mes)
 
-    def get_new_message(
+    async def listen(
         self,
-        interval: int
-    ) -> Generator[
-        EmailMessage,
-        EmailMessage,
-        EmailMessage
-    ]:
+        interval: int = 1
+    ):
+        futures = []
         while True:
-            try:
-                for mail in self.get(
-                        'https://tempmail.plus/api/mails',
-                        ).json()['mail_list']:
-                    if mail['mail_id'] not in self.email_id:
-                        recv = self.get_mail(mail['mail_id'])
-                        log.info(
-                            f'New message from {mail["from_mail"]} '
-                            f'subject: {mail["subject"].__repr__()}'
-                            f' ID: {mail["mail_id"]}')
-                        self.email_id.append(mail['mail_id'])
-                        yield recv
-            except requests.exceptions.SSLError:
-                pass
-            time.sleep(interval)
+            futures.append(ensure_future(
+                asyncio.gather(*[
+                    ensure_future(
+                        self.on.on_message(i)) for i in (
+                            await self.get_new_message())])))
+            await asyncio.sleep(interval)
+            for i in futures:
+                if i.done():
+                    futures.remove(i)
 
-    def get_mail(self, id: str) -> EmailMessage:
+    def run_forever(self, interval: int):
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(self.listen(interval))
+
+    async def get_mail(self, id: str) -> EmailMessage:
         """
         Get Message Content
-
         :param id: mail_id
         """
-        to = self.get(
+        to = (await self.get(
             f'https://tempmail.plus/api/mails/{id}',
-            ).json()
+            )).json()
         to['to'] = self
-        log.info(f'Get Message From ID: {id.__repr__()}')
         return EmailMessage(**to)
 
-    def delete_message(self, id: int) -> bool:
+
+    async def delete_message(self, id: int) -> bool:
         """
         :param id: mail_id
         """
-        if id in self.email_id:
-            self.email_id.remove(id)
-        status = self.delete(
-            f'https://tempmail.plus/api/mails/{id}',
-            data={
-                'email': self.email,
-                'epin': ''
-            }).json()['result']
+        if id in self.emails_id:
+            self.emails_id.remove(id)
+        status = (await self.delete(
+            f'https://tempmail.plus/api/mails/{id}')).json()['result']
         if status:
             log.info('Email Message Successfully deleted')
         else:
@@ -295,21 +269,16 @@ class Email(requests.Session):
             raise Mail_ID_NOTFOUND()
         return status
 
-    def destroy(self) -> bool:
+    async def destroy(self) -> bool:
         """
         Destroy Inbox
         """
-        stat = self.delete(
-            'https://tempmail.plus/api/mails/',
-            data={
-                'email': self.email,
-                'first_id': self.first_id,
-                'epin': ''
-            }).json().get('result')
+        stat = (await self.delete(
+            'https://tempmail.plus/api/mails/')).json().get('result')
         log.info('Inbox Destroyed')
         return stat
 
-    def send_mail(
+    async def send_mail(
             self,
             to: str,
             subject: str,
@@ -349,7 +318,7 @@ class Email(requests.Session):
                 files.append(('file', open(i[0], 'rb')))
             elif i.__len__() > 1:
                 files.append(('file', (i[0], i[1].getvalue())))
-        return self.post(
+        return (await self.post(
                 'https://tempmail.plus/api/mails/',
                 data={
                     'email': self.email,
@@ -357,49 +326,25 @@ class Email(requests.Session):
                     'subject': subject,
                     'content_type': 'text/html',
                     'text': text
-                }, files=tuple(files)).json()['result']
+                }, files=tuple(files))).json()['result']
 
-    def listenbg(
-        self,
-        interval: int = 1,
-        thread: Optional[ThreadPoolScheduler] = None,
-        subscribe: Optional[Callable[[EmailMessage], Any]] = None
-    ) -> DisposableBase:
-        pool = [thread] if thread else []
-        m = self.get_new_message(0)
-        return reactivex.interval(interval).pipe(
-            operators.map(lambda x: m.__next__()),
-            *pool).subscribe(
-                on_next=subscribe or self.on.on_message)
-
-    def listen_new_message(self, interval: int):
-        """
-        :param interval: required
-        """
-        log.info('Listen New Message')
-        log.info(f'Interval: {interval}')
-        for i in self.get_new_message(interval=interval):
-            self.on.on_message(i)
-
-    @property
-    def secret_address(self):
+    async def secret_address(self):
         if self.protected:
             raise InvalidPIN()
-        em, ex = self.get(
+        em, ex = (await self.get(
             'https://tempmail.plus/api/box/hidden'
-            ).json()['email'].split('@')
+            )).json()['email'].split('@')
         return Email(em, Extension(ex))
 
-    @property
-    def protected(self):
-        x = self.get('https://tempmail.plus/api/mails').json()
+    async def protected(self):
+        x = (await self.get('https://tempmail.plus/api/mails')).json()
         if x.get('err'):
             f = err_code(x['err']['code'])
             if f == InvalidPIN:
                 return True
         return False
 
-    def Lock_Inbox(self, pin: str, duration_minutes: int = 60):
+    async def Lock_Inbox(self, pin: str, duration_minutes: int = 60):
         if self.protected:
             raise InvalidPIN()
         cp_params = self.params.copy()
@@ -407,15 +352,15 @@ class Email(requests.Session):
             'ttl_minutes': duration_minutes,
             'pin': pin
         })
-        if self.post(
+        if (await self.post(
             'https://tempmail.plus/api/box',
             data=cp_params
-        ).json()['result']:
+        )).json()['result']:
             self.params['epin'] = pin
             return True
         return False
 
-    def Delete_Lock(self):
+    async def Delete_Lock(self):
         if self.protected:
             raise InvalidPIN()
         return self.Lock_Inbox('', 0)

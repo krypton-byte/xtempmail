@@ -13,6 +13,8 @@ $ pip install git+https://github.com/krypton-byte/xtempmail
     <li> Lock Inbox</li>
     <li> Unlock Inbox</li>
     <li> Generate Secret Inbox</li>
+    <li> Asynchronous</li>
+    <li> Synchronous</li>
 </ul>
 
 # Example
