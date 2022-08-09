@@ -3,7 +3,7 @@ from inspect import signature
 from asyncio.tasks import ensure_future
 from io import BytesIO
 import asyncio
-from typing import Awaitable, Callable, Union, Coroutine, Optional, Any
+from typing import Callable, Union, Coroutine, Optional, Any
 import httpx
 from random import randint
 from .utils import log, Extension, EMAIL, err_code, extension
@@ -48,7 +48,7 @@ class Event:
     async def on_message(self, data: EmailMessage):
         log.debug('Message Received From %s ' % data.from_mail.email)
         for i in self.func:
-            if i[1] and i[1](data):
+            if not i[1] or (i[1] and i[1](data)):
                 self.futures.append(asyncio.ensure_future(i[0](data)))
                 if self.futures.__len__() > self.workers:
                     await asyncio.gather(*self.futures)
@@ -212,6 +212,7 @@ class Email(httpx.AsyncClient):
         for mail in mail_['mail_list']:
             data.append(self.get_mail(mail['mail_id']))
         return await asyncio.gather(*data)
+
     async def get_new_message(self) -> tuple[EmailMessage]:
         mes = []
         for mail in (await self.get(
@@ -252,7 +253,6 @@ class Email(httpx.AsyncClient):
             )).json()
         to['to'] = self
         return EmailMessage(**to)
-
 
     async def delete_message(self, id: int) -> bool:
         """

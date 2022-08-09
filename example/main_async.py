@@ -4,7 +4,6 @@ from xtempmail.aiomail import EMAIL, EmailMessage, Email
 log = logging.getLogger('xtempmail')
 log.setLevel(logging.INFO)
 app = Email(name='krypton', ext=EMAIL.MAILTO_PLUS)
-
 @app.on.message()
 async def baca(data: EmailMessage):
     print(f"\tfrom: {data.from_mail}\n\tsubject: {data.subject}\n\tpesan: {data.text}\n\tReply -> Hapus")
