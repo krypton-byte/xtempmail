@@ -76,7 +76,7 @@ async def baca(data: EmailMessage):
     print(f"\tFrom: {data.from_mail}\n\tSubject: {data.subject}\n\tBody: {data.text}\n\tReply -> Delete")
     ok = []
     for i in data.attachments: # -> Forward attachmen
-        ok.append(( i.name, i.download()))
+        ok.append(( i.name, await i.download()))
     if data.from_is_local:
         await data.from_mail.send_message(data.subject, data.text, multiply_file=ok) # -> Forward message
     await data.delete()  #delete message
