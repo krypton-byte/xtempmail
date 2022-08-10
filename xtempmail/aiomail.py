@@ -52,7 +52,11 @@ class Event:
             if not i[1] or (i[1] and i[1](data)):
                 self.futures.append(asyncio.ensure_future(i[0](data)))
                 if self.futures.__len__() > self.workers:
-                    await asyncio.gather(*self.futures)
+                    for i in self.futures:
+                        if i.done():
+                            self.futures.remove(i)
+                    if self.futures.__len__() > self.workers:
+                        await asyncio.gather(*self.futures)
 
 
 class Attachment:
@@ -232,8 +236,7 @@ class Email(httpx.AsyncClient):
         while True:
             futures.append(ensure_future(
                 asyncio.gather(*[
-                    ensure_future(
-                        self.on.on_message(i)) for i in (
+                        self.on.on_message(i) for i in (
                             await self.get_new_message())])))
             await asyncio.sleep(interval)
             for i in futures:
