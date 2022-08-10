@@ -368,7 +368,7 @@ class Email(requests.Session):
         pool = [thread] if thread else []
         m = self.get_new_message(0)
         return reactivex.interval(interval).pipe(
-            operators.map(lambda x: m.__next__()),
+            operators.map(lambda *x: m.__next__()),
             *pool).subscribe(
                 on_next=subscribe or self.on.on_message)
 

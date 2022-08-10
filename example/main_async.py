@@ -8,7 +8,7 @@ app = Email(name='krypton', ext=EMAIL.MAILTO_PLUS)
 async def baca(data: EmailMessage):
     print(f"\tfrom: {data.from_mail}\n\tsubject: {data.subject}\n\tpesan: {data.text}\n\tReply -> Hapus")
     ok = []
-    for i in data.attachments: # -> Forward attachment
+    for i in data.attachments: # -> Forward attachmen
         ok.append(( i.name, i.download()))
     if data.from_is_local:
         await data.from_mail.send_message(data.subject, data.text, multiply_file=ok) # -> Forward message

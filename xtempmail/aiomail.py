@@ -1,9 +1,9 @@
 from __future__ import annotations
 from inspect import signature
-from asyncio.tasks import ensure_future
+from asyncio.tasks import Task, ensure_future
 from io import BytesIO
 import asyncio
-from typing import Callable, Union, Coroutine, Optional, Any
+from typing import Awaitable, Callable, Union, Optional, Any
 import httpx
 from random import randint
 from .utils import log, Extension, EMAIL, err_code, extension
@@ -19,11 +19,11 @@ class Event:
         self.workers = workers
         self.func: list[
             tuple[
-                Callable[[EmailMessage], Coroutine],
+                Callable[[EmailMessage], Any],
                 Union[Callable[[EmailMessage], Any], None]
             ]
         ] = []
-        self.futures = []
+        self.futures: list[Task] = []
 
     def message(self, filter: Optional[Callable[[EmailMessage], Any]] = None):
         def run(f: Union[Callable[[EmailMessage], None],  Any]):
@@ -193,7 +193,7 @@ class Email(httpx.AsyncClient):
         self.email = ext.apply(name)
         self.on = Event(workers)
         self.first_id = randint(10000000, 99999999)
-        self.emails_id = []
+        self.emails_id: list[int] = []
         self.epin = epin
         self.params: dict[str, Union[str, int]] = {
             'email': self.email,
@@ -203,7 +203,7 @@ class Email(httpx.AsyncClient):
         log.info(f'Email: {self.email}')
 
     async def get_all_message(self) -> tuple[EmailMessage]:
-        data = []
+        data: list[Awaitable] = []
         mail_ = (await self.get('https://tempmail.plus/api/mails')).json()
         if mail_.get('err'):
             ob = err_code(mail_['err']['code'])
@@ -214,7 +214,7 @@ class Email(httpx.AsyncClient):
         return await asyncio.gather(*data)
 
     async def get_new_message(self) -> tuple[EmailMessage]:
-        mes = []
+        mes: list[Task] = []
         for mail in (await self.get(
                 'https://tempmail.plus/api/mails',
                 )).json()['mail_list']:
@@ -227,7 +227,7 @@ class Email(httpx.AsyncClient):
         self,
         interval: int = 1
     ):
-        futures = []
+        futures: list[Task] = []
         while True:
             futures.append(ensure_future(
                 asyncio.gather(*[
@@ -328,7 +328,7 @@ class Email(httpx.AsyncClient):
                     'text': text
                 }, files=tuple(files))).json()['result']
 
-    async def secret_address(self):
+    async def secret_address(self) -> Email:
         if self.protected:
             raise InvalidPIN()
         em, ex = (await self.get(
@@ -336,7 +336,7 @@ class Email(httpx.AsyncClient):
             )).json()['email'].split('@')
         return Email(em, Extension(ex))
 
-    async def protected(self):
+    async def protected(self) -> bool:
         x = (await self.get('https://tempmail.plus/api/mails')).json()
         if x.get('err'):
             f = err_code(x['err']['code'])
@@ -344,7 +344,7 @@ class Email(httpx.AsyncClient):
                 return True
         return False
 
-    async def Lock_Inbox(self, pin: str, duration_minutes: int = 60):
+    async def Lock_Inbox(self, pin: str, duration_minutes: int = 60) -> bool:
         if self.protected:
             raise InvalidPIN()
         cp_params = self.params.copy()
@@ -360,10 +360,10 @@ class Email(httpx.AsyncClient):
             return True
         return False
 
-    async def Delete_Lock(self):
+    async def Delete_Lock(self) -> bool:
         if self.protected:
             raise InvalidPIN()
-        return self.Lock_Inbox('', 0)
+        return await self.Lock_Inbox('', 0)
 
     def __repr__(self) -> str:
         return f'<({self.email})>'
