@@ -1,6 +1,5 @@
 from __future__ import annotations
 from inspect import signature
-import logging
 from io import BytesIO
 from random import randint
 import time
@@ -21,12 +20,7 @@ from .utils import (
     Extension,
     extension
 )
-author = "krypton-byte"
-logging.basicConfig(format='%(asctime)s  %(message)s', level=logging.INFO)
-log = logging.getLogger('xtempmail')
-log.setLevel(logging.WARNING)
-# log=logging.getLogger('xtempmail')
-# log.setLevel(logging.INFO)
+from .logger import log
 
 
 class event:

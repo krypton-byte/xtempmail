@@ -1,11 +1,9 @@
-import logging
+from __future__ import annotations
 from enum import Enum
+from typing import Union
 from .error import (
     InvalidPIN
 )
-logging.basicConfig(format='%(asctime)s  %(message)s', level=logging.INFO)
-log = logging.getLogger('xtempmail')
-log.setLevel(logging.WARNING)
 
 
 def err_code(c: int):
@@ -27,6 +25,16 @@ class EMAIL(Enum):
 
     def apply(self, name: str) -> str:
         return name + '@' + self.value
+
+    @classmethod
+    def istemp(cls, email: Union[str, Extension]):
+        mail = email.ex[1:] if isinstance(
+            email, Extension) else (
+                email.split('@')[email.split('@').__len__() == 2])
+        for e in cls.__members__.values():
+            if e.value == mail:
+                return True
+        return False
 
 
 class Extension:

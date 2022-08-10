@@ -6,7 +6,8 @@ import asyncio
 from typing import Awaitable, Callable, Union, Optional, Any
 import httpx
 from random import randint
-from .utils import log, Extension, EMAIL, err_code, extension
+from .utils import Extension, EMAIL, err_code, extension
+from .logger import log
 from .error import (
     Parameters,
     InvalidPIN,
