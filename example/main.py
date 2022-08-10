@@ -7,7 +7,7 @@ app = Email(name='krypton', ext=extension[1])
 
 @app.on.message()
 def baca(data: EmailMessage):
-    print(f"\tfrom: {data.from_mail}\n\tsubject: {data.subject}\n\tpesan: {data.text}\n\tReply -> Hapus")
+    print(f"\tFrom: {data.from_mail}\n\tSubject: {data.subject}\n\tBody: {data.text}\n\tReply -> Delete")
     ok = []
     for i in data.attachments: # -> Forward attachment
         ok.append(( i.name, i.download()))
