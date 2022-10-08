@@ -94,7 +94,7 @@ class Attachment:
 @dataclass
 class StrangerMail:
     account: Email
-    stranger: str
+    email: str
 
     async def send_message(
             self,

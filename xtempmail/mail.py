@@ -79,7 +79,7 @@ def warn_mail(e):
 @dataclass
 class StrangerMail:
     account: Email
-    stranger: str
+    email: str
 
     def send_message(
             self,
