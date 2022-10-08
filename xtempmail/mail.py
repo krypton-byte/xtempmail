@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from inspect import signature
 from io import BytesIO
 from random import randint
@@ -75,14 +76,10 @@ def warn_mail(e):
         log.warning(f'[!] @{e.split("@")[-1]} unsupported\n')
 
 
+@dataclass
 class StrangerMail:
-    """
-        :param account: Email
-        :param stranger: str
-    """
-    def __init__(self, account: Email, stranger: str) -> None:
-        self.email = stranger
-        self.account = account
+    account: Email
+    stranger: str
 
     def send_message(
             self,
@@ -111,32 +108,15 @@ class StrangerMail:
         return self.email
 
 
+@dataclass
 class Attachment:
-    """
-    :param mail: mail
-    :param mail_id: Mail Identity
-    :param attachment_id: Attachment Identity
-    :param content_id: str
-    :param name: filename
-    :param size: Filesize
-    """
-    def __init__(
-            self,
-            mail,
-            mail_id: int,
-            attachment_id: int,
-            content_id: str,
-            name: str,
-            size: int,
-            myemail: Email
-    ) -> None:
-        self.mail = mail
-        self.mail_id = mail_id
-        self.id = attachment_id
-        self.content_id = content_id
-        self.name = name
-        self.size = size
-        self.myemail = myemail
+    mail: str
+    mail_id: int
+    attachment_id: int
+    content_id: str
+    name: str
+    size: int
+    myemail: Email
 
     def download(self) -> BytesIO:
         """
