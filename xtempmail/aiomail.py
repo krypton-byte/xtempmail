@@ -313,7 +313,7 @@ class Email(httpx.AsyncClient):
                 }, files=tuple(files))).json()['result']
 
     async def secret_address(self) -> Email:
-        if self.protected:
+        if await self.protected():
             raise InvalidPIN()
         em, ex = (await self.get(
             'https://tempmail.plus/api/box/hidden'
@@ -329,7 +329,7 @@ class Email(httpx.AsyncClient):
         return False
 
     async def Lock_Inbox(self, pin: str, duration_minutes: int = 60) -> bool:
-        if self.protected:
+        if await self.protected():
             raise InvalidPIN()
         cp_params = self.params.copy()
         cp_params.update({
@@ -345,7 +345,7 @@ class Email(httpx.AsyncClient):
         return False
 
     async def Delete_Lock(self) -> bool:
-        if self.protected:
+        if await self.protected():
             raise InvalidPIN()
         return await self.Lock_Inbox('', 0)
 
