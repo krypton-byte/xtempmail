@@ -7,8 +7,7 @@ from .error import (
 
 
 def isoformat_translate(format: str):
-    h = 'Mon, 09 Jan 2023 19:30:11 +0200'
-    split = h.split(' ')[1:]
+    split = format.split(' ')[1:]
     index = [
         'jan', 'feb', 'mar', 'apr', 'may', 'jun',
         'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
