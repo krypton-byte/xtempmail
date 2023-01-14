@@ -7,21 +7,28 @@ log.setLevel(logging.INFO)
 app = Email(name='krypton', ext=extension[1])
 cb = event()
 
+
 @cb.message()
 def baca(data: EmailMessage):
-    print(f"\tfrom: {data.from_mail}\n\tsubject: {data.subject}\n\tpesan: {data.text}\n\tReply -> Hapus")
+    print(
+        f"\tfrom: {data.from_mail}\n\tsubject: {data.subject}"
+        f"\n\tpesan: {data.text}\n\tReply -> Hapus"
+    )
     ok = []
-    for i in data.attachments: # -> Forward attachment
-        ok.append(( i.name, i.download()))
+    for i in data.attachments:  # -> Forward attachment
+        ok.append((i.name, i.download()))
     if data.from_is_local:
-        data.from_mail.send_message(data.subject, data.text, multiply_file=ok) # -> Forward message
-    data.delete()  #delete message
+        data.from_mail.send_message(data.subject, data.text, multiply_file=ok)
+        # -> Forward message
+    data.delete()  # delete message
 
-@cb.message(lambda msg:msg.attachments)
+
+@cb.message(lambda msg: msg.attachments)
 def get_message_media(data: EmailMessage):
     print(f'attachment: {[i.name for i in data.attachments]}')
 
-@cb.message(lambda x:x.from_mail.__str__().endswith('@gmail.com'))
+
+@cb.message(lambda x: x.from_mail.__str__().endswith('@gmail.com'))
 def getGmailMessage(data: EmailMessage):
     print(f'Gmail: {data.from_mail}')
 
@@ -34,5 +41,5 @@ if __name__ == '__main__':
             proc.dispose()
             input('enter to start')
     except KeyboardInterrupt:
-        app.destroy() #destroy inbox
+        app.destroy()  # destroy inbox
         print('destroyed')

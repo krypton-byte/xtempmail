@@ -6,6 +6,17 @@ from .error import (
 )
 
 
+def isoformat_translate(format: str):
+    h = 'Mon, 09 Jan 2023 19:30:11 +0200'
+    split = h.split(' ')[1:]
+    index = [
+        'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+        'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
+    ].index(split[1].lower())+1
+    month = index.__str__().zfill(2)
+    return f'{split[2]}-{month}-{split[0]}T{split[3]}'
+
+
 def err_code(c: int):
     if c == 1021:
         return InvalidPIN

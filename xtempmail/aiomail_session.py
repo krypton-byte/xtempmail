@@ -1,25 +1,43 @@
 from __future__ import annotations
+import time
+from sqlalchemy import update, and_
 from dataclasses import dataclass
 from datetime import datetime
 from inspect import signature
 from asyncio.tasks import Task, ensure_future
 from io import BytesIO
 import asyncio
-from typing import Awaitable, Callable, Union, Optional, Any
+from os.path import getsize
+from typing import Awaitable, Callable, Union, Optional, Any, List
 import httpx
 from random import randint
-from .utils import Extension, EMAIL, err_code, extension, isoformat_translate
+from .utils import err_code, extension, isoformat_translate
 from .logger import log
 from .error import (
     Parameters,
     InvalidPIN,
     Mail_ID_NOTFOUND
 )
+from .account import Account, UserUnavailable
+from .abstract_models import (
+    AttachmentBase,
+    StrangerMailBase,
+    EmailMessageBase,
+    EventBase,
+    EmailBase
+)
+from .models import (
+    Attachment as AttachmentTable,
+    AttachmentSent,
+    Sent,
+    User
+)
 
 
-class Event:
-    def __init__(self, workers: int = 30) -> None:
+class Event(EventBase):
+    def __init__(self, account: Account, workers: int = 30) -> None:
         self.workers = workers
+        self.account = account
         self.func: list[
             tuple[
                 Callable[[EmailMessage], Any],
@@ -28,7 +46,10 @@ class Event:
         ] = []
         self.futures: list[Task] = []
 
-    def message(self, filter: Optional[Callable[[EmailMessage], Any]] = None):
+    def message(
+        self,
+        filter: Optional[Callable[[EmailMessage], Any]] = None
+    ) -> Callable[[Union[Callable[[EmailMessage], None],  Any]], Any]:
         def run(f: Union[Callable[[EmailMessage], None],  Any]):
             if callable(filter):
                 sig = signature(filter)
@@ -36,7 +57,7 @@ class Event:
                         or sig.parameters.keys().__len__() < 1:
                     raise Parameters(
                         '1 Parameters Required For filter Parameter')
-                log.info(
+                log.debug(
                     f'Filter Parameter: {list(sig.parameters.keys())[0]}')
             if not callable(f):
                 raise TypeError('Is not function')
@@ -44,12 +65,25 @@ class Event:
             if sig.parameters.keys().__len__() > 1 or \
                     sig.parameters.keys().__len__() < 1:
                 raise Parameters('1 Parameters Required In Callback function')
-            log.info(f'Callback Parameter: {list(sig.parameters.keys())[0]}')
+            log.debug(f'Callback Parameter: {list(sig.parameters.keys())[0]}')
             self.func.append((f, filter))
         return run
 
     async def on_message(self, data: EmailMessage):
         log.debug('Message Received From %s ' % data.from_mail.email)
+        if data.is_new:
+            await self.account.push_inbox(data)
+            if data.attachments:
+                async with self.account.session() as session:
+                    async with session.begin():
+                        for attachment in data.attachments:
+                            session.add(AttachmentTable(
+                                mailbox_id=data.mail_id,
+                                attachment_id=attachment.attachment_id,
+                                size=attachment.size,
+                                name=attachment.name
+                            ))
+                        await session.commit()
         for i in self.func:
             if not i[1] or (i[1] and i[1](data)):
                 self.futures.append(asyncio.ensure_future(i[0](data)))
@@ -62,7 +96,7 @@ class Event:
 
 
 @dataclass
-class Attachment:
+class Attachment(AttachmentBase):
     mail: str
     mail_id: int
     attachment_id: int
@@ -72,13 +106,13 @@ class Attachment:
     myemail: Email
 
     async def download(self) -> BytesIO:
-        log.info(
-            f'Download File, Attachment ID: {self.attachment_id} '
+        log.debug(
+            f'Download File, Attachment ID: {self.id} '
             f'FROM: {self.mail.__repr__()} '
             f'NAME: {self.name.__repr__()}')
         bins = await self.myemail.get(
             f'https://tempmail.plus/api/mails/{self.mail_id}'
-            f'/attachments/{self.attachment_id}'
+            f'/attachments/{self.id}'
         )
         return BytesIO(bins.content)
 
@@ -96,7 +130,7 @@ class Attachment:
 
 
 @dataclass
-class StrangerMail:
+class StrangerMail(StrangerMailBase):
     account: Email
     email: str
 
@@ -127,12 +161,12 @@ class StrangerMail:
         return self.email
 
 
-class EmailMessage:
+class EmailMessage(EmailMessageBase):
     """
     :param kwargs: required
     """
-    def __init__(self, **kwargs) -> None:
-        self.attachments: list[Attachment] = []
+    def __init__(self, is_new: bool, **kwargs) -> None:
+        self.attachments: List[Attachment] = []
         self.from_mail = StrangerMail(kwargs['to'], kwargs['from_mail'])
         for i in kwargs.pop('attachments', {}):
             attach = Attachment(
@@ -145,6 +179,7 @@ class EmailMessage:
             isoformat_translate(kwargs["date"]))
         self.from_is_local: bool = kwargs["from_is_local"]
         self.from_name: str = kwargs["from_name"]
+        self.is_new = is_new
         self.html: str = kwargs["html"]
         self.is_tls: bool = kwargs["is_tls"]
         self.mail_id: int = kwargs["mail_id"]
@@ -171,26 +206,28 @@ def warn_mail(e):
         log.warning(f'[!] @{e.split("@")[-1]} unsupported\n')
 
 
-class Email(httpx.AsyncClient):
+class Email(httpx.AsyncClient, EmailBase):
     def __init__(
         self,
-        name: str,
-        ext: Union[EMAIL, Extension],
-        epin: str = '',
+        account: Account,
         workers: int = 40
     ):
         super().__init__(timeout=60)
-        self.email = ext.apply(name)
-        self.on = Event(workers)
+        try:
+            account.login_sync()
+        except UserUnavailable:
+            account.create_sync()
+        self.email = account.full
+        self.account = account
+        self.on = Event(account, workers)
         self.first_id = randint(10000000, 99999999)
         self.emails_id: list[int] = []
-        self.epin = epin
         self.params: dict[str, Union[str, int]] = {
             'email': self.email,
             'first_id': self.first_id,
-            'epin': epin
+            'epin': account.pin
         }
-        log.info(f'Email: {self.email}')
+        log.debug(f'Email: {self.email}')
 
     async def get_all_message(self) -> tuple[EmailMessage]:
         data: list[Awaitable] = []
@@ -200,7 +237,7 @@ class Email(httpx.AsyncClient):
             if ob:
                 raise ob(mail_['err']['msg'])
         for mail in mail_['mail_list']:
-            data.append(self.get_mail(mail['mail_id']))
+            data.append(self.get_mail(mail['mail_id'], is_new=mail_['is_new']))
         return await asyncio.gather(*data)
 
     async def get_new_message(self) -> tuple[EmailMessage]:
@@ -209,7 +246,8 @@ class Email(httpx.AsyncClient):
                 'https://tempmail.plus/api/mails',
                 )).json()['mail_list']:
             if mail['mail_id'] not in self.emails_id:
-                mes.append(ensure_future(self.get_mail(mail['mail_id'])))
+                mes.append(ensure_future(
+                    self.get_mail(mail['mail_id'], is_new=mail['is_new'])))
                 self.emails_id.append(mail['mail_id'])
         return await asyncio.gather(*mes)
 
@@ -232,7 +270,7 @@ class Email(httpx.AsyncClient):
         loop = asyncio.new_event_loop()
         loop.run_until_complete(self.listen(interval))
 
-    async def get_mail(self, id: str) -> EmailMessage:
+    async def get_mail(self, id: str, is_new: bool) -> EmailMessage:
         """
         Get Message Content
         :param id: mail_id
@@ -241,7 +279,7 @@ class Email(httpx.AsyncClient):
             f'https://tempmail.plus/api/mails/{id}',
             )).json()
         to['to'] = self
-        return EmailMessage(**to)
+        return EmailMessage(**to, is_new=is_new)
 
     async def delete_message(self, id: int) -> bool:
         """
@@ -252,7 +290,7 @@ class Email(httpx.AsyncClient):
         status = (await self.delete(
             f'https://tempmail.plus/api/mails/{id}')).json()['result']
         if status:
-            log.info('Email Message Successfully deleted')
+            log.debug('Email Message Successfully deleted')
         else:
             log.warn('Email Message not found')
             raise Mail_ID_NOTFOUND()
@@ -264,7 +302,7 @@ class Email(httpx.AsyncClient):
         """
         stat = (await self.delete(
             'https://tempmail.plus/api/mails/')).json().get('result')
-        log.info('Inbox Destroyed')
+        log.debug('Inbox Destroyed')
         return stat
 
     async def send_mail(
@@ -286,44 +324,85 @@ class Email(httpx.AsyncClient):
         :param multiply_file: tuple (BytesIO|path, str)
         """
         warn_mail(to)
-        log.info(
+        log.debug(
                 f'Send Message From: {self.email.__repr__()} To: '
                 f'{to.__repr__()} Subject: {subject.__repr__()} '
                 f'Attachment: {bool(file or multiply_file)}')
         files: list[tuple[str, Union[tuple[str, bytes], Any]]] = []
-        to = to.email if isinstance(to, StrangerMail) else to
-        if file:
-            if isinstance(file, str):
-                if filename and isinstance(filename, str):
-                    files.append((
-                        'file',
-                        (filename or file, open(file, 'rb').read())))
-                else:
-                    files.append(('file', open(file, 'rb')))
-            elif isinstance(file, BytesIO):
-                files.append(('file', (filename, file.getvalue())))
-        for i in (multiply_file or []):
-            if i.__len__() == 1:
-                files.append(('file', open(i[0], 'rb')))
-            elif i.__len__() > 1:
-                files.append(('file', (i[0], i[1].getvalue())))
-        return (await self.post(
-                'https://tempmail.plus/api/mails/',
-                data={
-                    'email': self.email,
-                    'to': to,
-                    'subject': subject,
-                    'content_type': 'text/html',
-                    'text': text
-                }, files=tuple(files))).json()['result']
+        to: str = to.email if isinstance(to, StrangerMail) else to
+        async with self.account.session() as session:
+            async with session.begin():
+                sent = Sent(
+                    to=to,
+                    from_id=await self.account.get_id(),
+                    subject=subject,
+                    body=text
+                )
+                session.add(sent)
+                await session.commit()
+                await session.flush()
+                async with self.account.session() as session2:
+                    async with session2.begin():
+                        if file:
+                            if isinstance(file, str):
+                                if filename and isinstance(filename, str):
+                                    files.append((
+                                        'file',
+                                        (
+                                            filename or file,
+                                            open(file, 'rb').read()
+                                        )))
+                                    session2.add(AttachmentSent(
+                                        path=file,
+                                        size=getsize(file),
+                                        sent_id=sent.id
+                                    ))
+                                else:
+                                    files.append(('file', open(file, 'rb')))
+                            elif isinstance(file, BytesIO):
+                                files.append((
+                                    'file',
+                                    (filename, file.getvalue())
+                                ))
+                                session2.add(AttachmentSent(
+                                        path=filename,
+                                        size=getsize(file),
+                                        sent_id=sent.id
+                                ))
+                        for i in (multiply_file or []):
+                            if i.__len__() == 1:
+                                files.append(('file', open(i[0], 'rb')))
+                                session2.add(AttachmentSent(
+                                        path=i[0],
+                                        size=getsize(i[0]),
+                                        sent_id=sent.id
+                                    ))
+                            elif i.__len__() > 1:
+                                files.append(('file', (i[0], i[1].getvalue())))
+                                session2.add(AttachmentSent(
+                                        path=i[0],
+                                        size=i[1].getbuffer().nbytes,
+                                        sent_id=sent.id
+                                    ))
+                        await session2.commit()
+                return (await self.post(
+                        'https://tempmail.plus/api/mails/',
+                        data={
+                            'email': self.email,
+                            'to': to,
+                            'subject': subject,
+                            'content_type': 'text/html',
+                            'text': text
+                        }, files=tuple(files))).json()['result']
 
-    async def secret_address(self) -> Email:
+    async def secret_address(self) -> str:
         if await self.protected():
             raise InvalidPIN()
-        em, ex = (await self.get(
+        em = (await self.get(
             'https://tempmail.plus/api/box/hidden'
-            )).json()['email'].split('@')
-        return Email(em, Extension(ex))
+            )).json()['email']
+        await self.account.set_secret_inbox(em)
+        return em
 
     async def protected(self) -> bool:
         x = (await self.get('https://tempmail.plus/api/mails')).json()
@@ -334,7 +413,7 @@ class Email(httpx.AsyncClient):
         return False
 
     async def Lock_Inbox(self, pin: str, duration_minutes: int = 60) -> bool:
-        if await self.protected():
+        if self.protected:
             raise InvalidPIN()
         cp_params = self.params.copy()
         cp_params.update({
@@ -346,11 +425,23 @@ class Email(httpx.AsyncClient):
             data=cp_params
         )).json()['result']:
             self.params['epin'] = pin
+            async with self.account.session() as session:
+                async with session.begin():
+                    await session.execute(
+                        update(User).where(and_(
+                            User.username == self.account.username,
+                            User.provider == self.account.provider.value
+                        )).values(
+                            epin=pin,
+                            expired=int(time.time() + duration_minutes)
+                        )
+                    )
+                    await self.account.set_pin(pin)
             return True
         return False
 
     async def Delete_Lock(self) -> bool:
-        if await self.protected():
+        if self.protected:
             raise InvalidPIN()
         return await self.Lock_Inbox('', 0)
 

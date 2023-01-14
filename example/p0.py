@@ -7,14 +7,16 @@ log = logging.getLogger('xtempmail')
 log.setLevel(logging.INFO)
 app = Email(name='player0', ext=extension[1])
 
+
 @app.on.message()
 def read(data: EmailMessage):
     if data.from_is_local:
         print(f'P1: {data.text}')
-    data.delete()  #delete message
+    data.delete()  # delete message
+
 
 if __name__ == '__main__':
-    m=multiprocessing.Process(target=app.listen_new_message, args=(2, ))
+    m = multiprocessing.Process(target=app.listen_new_message, args=(2, ))
     try:
         m.start()
         while True:
@@ -24,5 +26,5 @@ if __name__ == '__main__':
             print(f'P0: {da}')
     except KeyboardInterrupt:
         m.terminate()
-        app.destroy() #destroy inbox
+        app.destroy()  # destroy inbox
         print('destroyed')
