@@ -1,5 +1,6 @@
 [![Unittest](https://github.com/krypton-byte/xtempmail/actions/workflows/typing.yml/badge.svg)](https://github.com/krypton-byte/xtempmail/actions/workflows/typing.yml)
 [![Upload to PyPi](https://github.com/krypton-byte/xtempmail/actions/workflows/release.yml/badge.svg)](https://github.com/krypton-byte/xtempmail/actions/workflows/release.yml)
+[![Downloads](https://pepy.tech/badge/xtempmail)](https://pepy.tech/project/xtempmail)
 # Temporary Mail
 Tempmail client for <a href='https://tempmail.plus'>tempmail.plus</a>
 
