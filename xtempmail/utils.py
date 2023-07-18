@@ -25,13 +25,11 @@ class EMAIL(Enum):
     MAILTO_PLUS = 'mailto.plus'
     FEXPOST_COM = 'fexpost.com'
     FEXBOX_ORG = 'fexbox.org'
-    FEXBOX_RU = 'fexbox.ru'
     MAILBOX_IN_UA = 'mailbok.in.ua'
-    ROVER_INFO = 'rover.info'
-    INPWA_COM = 'inpwa.com'
-    INTOPWA_COM = 'intopwa.com'
-    TOFEAT_COM = 'tofeat.com'
     CHITTHI_IN = 'chitthi.in'
+    FEXTEMP_COM = 'fextemp.com'
+    ANY_PINK = 'any.pink'
+    MEREPOST_COM = 'merepost.com'
 
     def apply(self, name: str) -> str:
         return name + '@' + self.value
